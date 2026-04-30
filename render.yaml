@@ -12,8 +12,8 @@ services:
     runtime: docker
     region: oregon            # change if you prefer fra/ohio/sing/etc.
     plan: starter             # ~$7/mo. Free plan also works but sleeps after 15min idle.
-    rootDir: youtube-blog-app
     dockerfilePath: ./Dockerfile
+    dockerContext: .
     healthCheckPath: /
     envVars:
       - key: HOST
