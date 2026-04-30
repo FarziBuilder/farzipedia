@@ -92,7 +92,15 @@ def fetch_snippets(video_id: str, languages: Optional[List[str]] = None) -> List
     proxy_config = _build_proxy_config()
     last_error: Optional[Exception] = None
 
-    for attempt in range(4):
+    # Try to import the specific exception classes — let us check by type
+    # rather than relying on error-message text matching.
+    try:
+        from youtube_transcript_api._errors import RequestBlocked, IpBlocked
+        BLOCK_ERRORS: tuple = (RequestBlocked, IpBlocked)
+    except ImportError:
+        BLOCK_ERRORS = ()
+
+    for attempt in range(6):
         try:
             if hasattr(YouTubeTranscriptApi, "fetch") or hasattr(YouTubeTranscriptApi(), "fetch"):
                 api = YouTubeTranscriptApi(proxy_config=proxy_config) if proxy_config else YouTubeTranscriptApi()
@@ -102,13 +110,19 @@ def fetch_snippets(video_id: str, languages: Optional[List[str]] = None) -> List
             return _normalize(YouTubeTranscriptApi.get_transcript(video_id, **kwargs))
         except Exception as e:
             msg = str(e).lower()
-            transient = any(s in msg for s in (
+            # YouTube IP-block errors: retry — rotation will give a fresh IP.
+            blocked = isinstance(e, BLOCK_ERRORS) or "is blocking your requests" in msg
+            # SSL / transport errors: also retry.
+            transport = any(s in msg for s in (
                 "ssl", "eof", "connection reset", "max retries", "remote disconnected",
             ))
             last_error = e
-            if not transient or attempt == 3:
+            if not (blocked or transport) or attempt == 5:
                 raise
-            time.sleep(1.5 * (attempt + 1))  # 1.5s, 3s, 4.5s
+            # Longer waits when blocked so the proxy has time to rotate IP
+            # (1s, 2s, 3s, 5s, 8s ≈ Fibonacci, total ~19s worst case)
+            wait = (1, 2, 3, 5, 8)[attempt]
+            time.sleep(wait)
 
     if last_error is not None:
         raise last_error
