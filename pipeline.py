@@ -21,6 +21,20 @@ def _canonical_youtube_url(video_id: str) -> str:
     return f"https://www.youtube.com/watch?v={video_id}"
 
 
+def _cookies_args() -> list:
+    """Pass --cookies if a cookie file is available.
+
+    YouTube's 2024+ anti-bot check ("Sign in to confirm you're not a
+    bot") requires an authenticated session for most video metadata.
+    On Render, mount a YouTube cookies.txt as a Secret File at
+    /etc/secrets/cookies.txt (or override the path with YT_COOKIES_FILE).
+    """
+    path = os.environ.get("YT_COOKIES_FILE", "/etc/secrets/cookies.txt")
+    if os.path.isfile(path):
+        return ["--cookies", path]
+    return []
+
+
 def _proxy_args() -> list:
     """yt-dlp proxy flags. Two modes:
 
@@ -54,9 +68,11 @@ def _yt_dlp_metadata(url: str) -> dict:
     """Fast metadata-only fetch (no download). Returns {} on failure."""
     args = [
         sys.executable, "-m", "yt_dlp",
+        "--extractor-args", "youtube:player_client=tv,web_safari,android,web,ios,mweb",
         "--no-playlist", "--skip-download", "--print-json", "--no-progress",
         "--socket-timeout", "20",
         *_proxy_args(),
+        *_cookies_args(),
         url,
     ]
     proc = subprocess.run(args, capture_output=True, text=True, timeout=60)
@@ -77,13 +93,14 @@ def _yt_dlp_download(url: str, out_path: Path) -> dict:
     universal fallback YouTube always serves."""
     args = [
         sys.executable, "-m", "yt_dlp",
-        "--extractor-args", "youtube:player_client=android,web,ios,mweb",
+        "--extractor-args", "youtube:player_client=tv,web_safari,android,web,ios,mweb",
         "-f", "b[height<=480][ext=mp4]/18/best[height<=480]/best",
         "--no-playlist", "--print-json", "--no-progress",
         "--socket-timeout", "30",
         "--retries", "5",
         "--fragment-retries", "5",
         *_proxy_args(),
+        *_cookies_args(),
         "-o", str(out_path),
         url,
     ]
