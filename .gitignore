@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+*.so
+.venv/
+venv/
+env/
+ENV/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Jobs / generated artifacts
+jobs/*
+!jobs/.gitkeep
+*.mp4
+*.webm
+*.mkv
+transcript.json
+transcript.err
+
+# Editors
+.idea/
+.vscode/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

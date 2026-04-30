@@ -1,0 +1,35 @@
+# Fly.io app config. Deploy with:
+#   flyctl launch --copy-config --no-deploy   (first time, accept defaults)
+#   flyctl secrets set ANTHROPIC_API_KEY="sk-ant-..."
+#   flyctl secrets set WEBSHARE_PROXY_USERNAME="..." WEBSHARE_PROXY_PASSWORD="..."
+#   flyctl deploy
+
+app = "farzipedia"          # change to a name you own
+primary_region = "iad"      # any of: iad / sjc / ams / fra / sin / ...
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  HOST = "0.0.0.0"
+  PORT = "8080"
+  PYTHONUNBUFFERED = "1"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"   # save money — wakes on first request
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 1024              # 1 GB — enough for a 60-min video at 480p
+
+# Optional persistent volume so generated codices survive restarts.
+# Run `flyctl volumes create farzipedia_data --region iad --size 1`
+# then uncomment:
+# [mounts]
+#   source = "farzipedia_data"
+#   destination = "/app/jobs"

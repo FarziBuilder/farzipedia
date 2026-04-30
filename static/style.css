@@ -1,0 +1,253 @@
+/* ============================================================
+   FarziPedia — Renaissance codex stylesheet
+   ============================================================ */
+
+/* Aged parchment background — multi-layer warm gradients +
+   subtle SVG fiber/grain pattern for the "paper" feel. */
+body {
+  background-color: #f4e8c8;
+  background-image:
+    /* Vignette (darker corners) */
+    radial-gradient(ellipse at 50% 50%, rgba(244, 232, 200, 0) 0%, rgba(120, 80, 30, 0.18) 100%),
+    /* Warm tonal variation */
+    radial-gradient(at 20% 10%, rgba(212, 176, 92, 0.20) 0, transparent 45%),
+    radial-gradient(at 80% 30%, rgba(168, 60, 31, 0.10) 0, transparent 50%),
+    radial-gradient(at 15% 85%, rgba(92, 124, 138, 0.10) 0, transparent 55%),
+    radial-gradient(at 90% 90%, rgba(139, 90, 43, 0.18) 0, transparent 55%),
+    /* Subtle paper fiber via SVG noise */
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='400'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.45  0 0 0 0 0.32  0 0 0 0 0.18  0 0 0 0.10 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  background-size: cover, cover, cover, cover, cover, 400px 400px;
+  background-attachment: fixed, fixed, fixed, fixed, fixed, fixed;
+  background-blend-mode: normal, normal, normal, normal, normal, multiply;
+}
+
+/* Random "age spots" / foxing. Pseudo elements painted on body. */
+body::before, body::after {
+  content: "";
+  position: fixed;
+  pointer-events: none;
+  z-index: 0;
+}
+body::before {
+  inset: 0;
+  background-image:
+    radial-gradient(circle at 12% 22%, rgba(120, 70, 25, 0.10) 0, transparent 1.2%),
+    radial-gradient(circle at 88% 14%, rgba(120, 70, 25, 0.07) 0, transparent 1%),
+    radial-gradient(circle at 70% 80%, rgba(120, 70, 25, 0.08) 0, transparent 0.9%),
+    radial-gradient(circle at 32% 67%, rgba(120, 70, 25, 0.05) 0, transparent 1.1%),
+    radial-gradient(circle at 55% 35%, rgba(120, 70, 25, 0.06) 0, transparent 0.7%);
+}
+/* Soft inner edge — subtle dark border like a worn page */
+body::after {
+  inset: 0;
+  box-shadow: inset 0 0 200px rgba(80, 50, 20, 0.18);
+}
+main { position: relative; z-index: 1; }
+
+/* Selection: ink on parchment */
+::selection {
+  background: #2a1f12;
+  color: #f4e8c8;
+}
+
+/* Typography polish */
+.font-roman, .font-codex { font-feature-settings: "liga", "kern", "onum" on, "ss01" on; }
+.font-inscription { letter-spacing: 0.06em; }
+.tracking-codex   { letter-spacing: 0.18em; }
+
+/* ----- Drop cap (illuminated initial) ----- */
+.drop-cap::first-letter {
+  float: left;
+  font-family: 'Cinzel', serif;
+  font-weight: 800;
+  font-size: 4.5em;
+  line-height: 0.9;
+  padding: 0.15em 0.12em 0 0;
+  color: #a83c1f;     /* rubricated red */
+  text-shadow: 1px 1px 0 #c87148, 2px 2px 0 rgba(168, 60, 31, 0.15);
+}
+
+/* ----- Hand-drawn ornament line ----- */
+.ornament-rule {
+  display: flex; align-items: center; gap: 0.75rem;
+  color: #8b5a2b;
+}
+.ornament-rule::before, .ornament-rule::after {
+  content: ""; flex: 1; height: 1px;
+  background: linear-gradient(90deg, transparent, #8b5a2b 20%, #8b5a2b 80%, transparent);
+}
+.ornament-rule .fleuron {
+  font-family: 'IM Fell English', serif;
+  font-size: 1.5rem; line-height: 1;
+}
+
+/* ----- Decorative double rule ----- */
+.double-rule {
+  border-top: 1px solid #6b4220;
+  border-bottom: 1px solid #6b4220;
+  padding: 4px 0;
+  position: relative;
+}
+.double-rule::after {
+  content: ""; position: absolute; left: 0; right: 0; top: 50%;
+  height: 0; border-top: 0.5px solid rgba(107, 66, 32, 0.4);
+}
+
+/* ----- Marginalia (handwritten note in the margin) ----- */
+.marginalia {
+  font-family: 'Italianno', cursive;
+  color: #6b4220;
+  transform: rotate(-3deg);
+  font-size: 1.4rem;
+  line-height: 1.2;
+}
+
+/* ----- Ink-drawn box / card ----- */
+.codex-card {
+  background:
+    linear-gradient(rgba(244, 232, 200, 0.7), rgba(244, 232, 200, 0.7)),
+    radial-gradient(at 30% 20%, rgba(212, 176, 92, 0.18) 0, transparent 60%);
+  border: 1px solid rgba(107, 66, 32, 0.35);
+  box-shadow:
+    inset 0 0 30px rgba(80, 50, 20, 0.06),
+    0 1px 0 rgba(255, 255, 255, 0.4) inset,
+    0 8px 24px -12px rgba(80, 50, 20, 0.25);
+  border-radius: 4px;
+  position: relative;
+}
+.codex-card::before, .codex-card::after {
+  content: ""; position: absolute; width: 22px; height: 22px;
+  border: 1px solid #6b4220;
+  pointer-events: none;
+}
+.codex-card::before { top: 6px; left: 6px; border-right: none; border-bottom: none; }
+.codex-card::after  { bottom: 6px; right: 6px; border-left: none; border-top: none; }
+
+/* ----- Wax-seal button ----- */
+.wax-seal {
+  background: radial-gradient(circle at 35% 30%, #c8401f 0, #8b1f10 65%, #5a1208 100%);
+  color: #f4e8c8;
+  border: 2px solid #5a1208;
+  text-shadow: 0 1px 0 rgba(0,0,0,0.4);
+  box-shadow:
+    inset 0 4px 8px rgba(255, 255, 255, 0.15),
+    inset 0 -6px 12px rgba(0, 0, 0, 0.3),
+    0 6px 16px -4px rgba(80, 20, 10, 0.45);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+.wax-seal:hover { transform: translateY(-1px) scale(1.02); }
+.wax-seal:active { transform: translateY(0) scale(0.99); }
+
+/* ----- Quill input ----- */
+.quill-input {
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid #6b4220;
+  border-radius: 0;
+  font-family: 'IM Fell English', serif;
+  color: #2a1f12;
+  padding: 0.6rem 0.25rem;
+  outline: none;
+}
+.quill-input:focus { border-bottom-color: #a83c1f; }
+.quill-input::placeholder { color: #9c8a72; font-style: italic; }
+
+/* ----- Sketched border (slight wobble) ----- */
+.sketch-border {
+  border: 1.5px solid #2a1f12;
+  border-radius: 2px;
+  position: relative;
+}
+.sketch-border::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border: 0.5px solid rgba(42, 31, 18, 0.4);
+  pointer-events: none;
+}
+
+/* ----- Spinning compass (loading indicator) ----- */
+.compass-rose { transform-origin: 50% 50%; }
+
+/* ----- Vitruvian backdrop: visible only at the edges, fades to clear in the centre
+   so it never competes with text overlaid on it. */
+.vitruvian-mask {
+  -webkit-mask-image: radial-gradient(ellipse at center,
+    transparent 0%, transparent 28%, rgba(0,0,0,0.4) 55%, rgba(0,0,0,0.85) 100%);
+          mask-image: radial-gradient(ellipse at center,
+    transparent 0%, transparent 28%, rgba(0,0,0,0.4) 55%, rgba(0,0,0,0.85) 100%);
+}
+
+/* ----- "Page within a page": a subtle lighter rectangle that lifts the central
+   content above the textured parchment, like a leaf laid on a desk. */
+.codex-page {
+  background:
+    linear-gradient(rgba(250, 243, 224, 0.78), rgba(250, 243, 224, 0.78)),
+    radial-gradient(at 50% 0%, rgba(212, 176, 92, 0.10) 0, transparent 60%);
+  border: 1px solid rgba(107, 66, 32, 0.12);
+  box-shadow:
+    inset 0 0 60px rgba(80, 50, 20, 0.05),
+    0 30px 80px -30px rgba(80, 50, 20, 0.20),
+    0 1px 0 rgba(255, 255, 255, 0.5) inset;
+  border-radius: 6px;
+}
+
+/* ----- Solid codex card variant — opaque enough that nothing bleeds through ----- */
+.codex-card-solid {
+  background:
+    linear-gradient(rgba(250, 243, 224, 0.96), rgba(250, 243, 224, 0.96)),
+    radial-gradient(at 30% 20%, rgba(212, 176, 92, 0.18) 0, transparent 60%);
+  border: 1px solid rgba(107, 66, 32, 0.45);
+  box-shadow:
+    inset 0 0 30px rgba(80, 50, 20, 0.06),
+    0 1px 0 rgba(255, 255, 255, 0.6) inset,
+    0 14px 36px -14px rgba(80, 50, 20, 0.30);
+  border-radius: 4px;
+  position: relative;
+}
+.codex-card-solid::before, .codex-card-solid::after {
+  content: ""; position: absolute; width: 22px; height: 22px;
+  border: 1px solid #6b4220;
+  pointer-events: none;
+}
+.codex-card-solid::before { top: 6px; left: 6px; border-right: none; border-bottom: none; }
+.codex-card-solid::after  { bottom: 6px; right: 6px; border-left: none; border-top: none; }
+
+/* Smooth anchors */
+html { scroll-behavior: smooth; }
+
+/* ============================================================
+   Print stylesheet (used for "Save as PDF" on the blog page)
+   ============================================================ */
+@media print {
+  .no-print { display: none !important; }
+  .print-block { display: block !important; }
+  body {
+    background: #fff !important;
+    background-image: none !important;
+    color: #1a1108 !important;
+  }
+  body::before, body::after { display: none !important; }
+  article { background: #fff !important; }
+  .print-mb-8 { margin-bottom: 2rem !important; }
+  .print-mb-6 { margin-bottom: 1.5rem !important; }
+  .print-my-4 { margin-top: 1rem !important; margin-bottom: 1rem !important; }
+  .print-mt-6 { margin-top: 1.5rem !important; }
+  .print-shadow-none { box-shadow: none !important; }
+  figure, aside, pre, blockquote, .print-keep-together {
+    break-inside: avoid; page-break-inside: avoid;
+  }
+  @page { size: A4; margin: 18mm 16mm; }
+  header.relative > div.max-w-3xl {
+    margin-top: 0 !important; padding-top: 0 !important;
+  }
+  p, figcaption, li { font-size: 11pt !important; line-height: 1.55 !important; }
+  h1 { font-size: 24pt !important; line-height: 1.1 !important; }
+  h2 { font-size: 16pt !important; line-height: 1.2 !important; }
+  figure img {
+    box-shadow: none !important;
+    max-height: 70vh; object-fit: contain;
+  }
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+}

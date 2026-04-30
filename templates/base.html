@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}FarziPedia{% endblock %}</title>
+  <meta name="description" content="FarziPedia — a codex of moving pictures, illuminated.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9C%92%3C/text%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700;800;900&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=IM+Fell+English:ital@0;1&family=Italianno&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400;1,9..144,500&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            // Renaissance display + body
+            inscription: ['Cinzel', 'Trajan Pro', 'serif'],     // Roman caps (FARZIPEDIA wordmark)
+            roman:       ['Cormorant Garamond', 'Garamond', 'serif'], // refined display serif
+            codex:       ['"IM Fell English"', 'Garamond', 'serif'],  // old book body
+            script:      ['Italianno', 'cursive'],              // swashy hand
+            // existing
+            display:     ['Fraunces', 'Georgia', 'serif'],
+            sans:        ['Inter', 'ui-sans-serif', 'system-ui'],
+            mono:        ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
+          },
+          colors: {
+            ink:    { 900: '#1a1108', 800: '#2a1f12', 700: '#3a2a1a', 500: '#5a4530', 300: '#9c8a72' },
+            paper:  { 0: '#faf3e0', 50: '#f4e8c8', 100: '#ebd9a8', 200: '#d4c089', 300: '#c0a86b' },
+            sepia:  { 400: '#a87844', 500: '#8b5a2b', 600: '#6b4220' },
+            accent: { 400: '#c87148', 500: '#a83c1f', 600: '#7d2d18' }, // rubricated red ink
+            gold:   { 400: '#d4b15c', 500: '#c9a449', 600: '#a88a39' },
+            indigo: { 400: '#7d96a8', 500: '#5c7c8a', 600: '#3e5d6e' },
+            // legacy used by blog.html
+            mint:   { 400: '#7dd3a4', 500: '#4cb380' },
+            sky:    { 400: '#7dbedf', 500: '#3a90c0' },
+            grape:  { 400: '#b78bd0', 500: '#8c5eaa' },
+          },
+          animation: {
+            'wiggle':   'wiggle 2.5s ease-in-out infinite',
+            'float':    'float 4s ease-in-out infinite',
+            'fade-up':  'fadeUp 0.5s ease-out',
+            'spin-slow':'spin 60s linear infinite',
+            'sand':     'sand 3s ease-in-out infinite',
+            'ink-drop': 'inkDrop 0.6s ease-out',
+          },
+          keyframes: {
+            wiggle:  { '0%,100%':{transform:'rotate(-2deg)'}, '50%':{transform:'rotate(2deg)'} },
+            float:   { '0%,100%':{transform:'translateY(0)'}, '50%':{transform:'translateY(-6px)'} },
+            fadeUp:  { '0%':{opacity:'0',transform:'translateY(10px)'}, '100%':{opacity:'1',transform:'translateY(0)'} },
+            sand:    { '0%,100%':{transform:'rotate(0deg)'}, '50%':{transform:'rotate(180deg)'} },
+            inkDrop: { '0%':{opacity:'0',transform:'scale(0.95)'}, '100%':{opacity:'1',transform:'scale(1)'} },
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="bg-paper-0 text-ink-900 font-codex antialiased">
+  {% block body %}{% endblock %}
+</body>
+</html>

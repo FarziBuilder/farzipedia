@@ -1,0 +1,34 @@
+# Render.com declarative deploy config.
+# Push this repo to GitHub, then in Render dashboard click
+#   New → Blueprint → connect repo → it auto-discovers this file.
+#
+# Set the secret env vars (ANTHROPIC_API_KEY, WEBSHARE_*) in the Render
+# dashboard after the service is created — they're flagged sync:false here
+# so they aren't committed to git.
+
+services:
+  - type: web
+    name: farzipedia
+    runtime: docker
+    region: oregon            # change if you prefer fra/ohio/sing/etc.
+    plan: starter             # ~$7/mo. Free plan also works but sleeps after 15min idle.
+    rootDir: youtube-blog-app
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: WEBSHARE_PROXY_USERNAME
+        sync: false
+      - key: WEBSHARE_PROXY_PASSWORD
+        sync: false
+    # Note: Render injects PORT automatically — app.py reads it.
+    # Persistent disk (optional, ~$1/mo) — keeps generated codices across deploys.
+    # disk:
+    #   name: farzipedia-jobs
+    #   mountPath: /app/jobs
+    #   sizeGB: 1
