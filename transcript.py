@@ -81,14 +81,35 @@ def _build_proxy_config():
 
 
 def fetch_snippets(video_id: str, languages: Optional[List[str]] = None) -> List[dict]:
+    """Fetch with retry — YouTube drops occasional SSL handshakes through
+    residential proxies when an exit IP is on its blocklist. With
+    -rotate suffix on the Webshare username, each retry lands on a
+    different IP, so a few retries usually succeed.
+    """
+    import time
     from youtube_transcript_api import YouTubeTranscriptApi
 
     proxy_config = _build_proxy_config()
+    last_error: Optional[Exception] = None
 
-    if hasattr(YouTubeTranscriptApi, "fetch") or hasattr(YouTubeTranscriptApi(), "fetch"):
-        api = YouTubeTranscriptApi(proxy_config=proxy_config) if proxy_config else YouTubeTranscriptApi()
-        kwargs = {"languages": languages} if languages else {}
-        return _normalize(api.fetch(video_id, **kwargs))
+    for attempt in range(4):
+        try:
+            if hasattr(YouTubeTranscriptApi, "fetch") or hasattr(YouTubeTranscriptApi(), "fetch"):
+                api = YouTubeTranscriptApi(proxy_config=proxy_config) if proxy_config else YouTubeTranscriptApi()
+                kwargs = {"languages": languages} if languages else {}
+                return _normalize(api.fetch(video_id, **kwargs))
+            kwargs = {"languages": languages} if languages else {}
+            return _normalize(YouTubeTranscriptApi.get_transcript(video_id, **kwargs))
+        except Exception as e:
+            msg = str(e).lower()
+            transient = any(s in msg for s in (
+                "ssl", "eof", "connection reset", "max retries", "remote disconnected",
+            ))
+            last_error = e
+            if not transient or attempt == 3:
+                raise
+            time.sleep(1.5 * (attempt + 1))  # 1.5s, 3s, 4.5s
 
-    kwargs = {"languages": languages} if languages else {}
-    return _normalize(YouTubeTranscriptApi.get_transcript(video_id, **kwargs))
+    if last_error is not None:
+        raise last_error
+    raise RuntimeError("transcript fetch failed without an error")
