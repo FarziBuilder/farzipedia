@@ -60,9 +60,8 @@ def _build_proxy_config():
     port = os.environ.get("WEBSHARE_PROXY_PORT", "80").strip()
 
     if user and pwd:
-        # Rotating endpoint requires -rotate suffix; static does not.
-        if host == "p.webshare.io" and not user.endswith("-rotate"):
-            user = f"{user}-rotate"
+        # Use the username verbatim — different Webshare account types accept
+        # different formats. Append `-rotate` in the env var yourself if needed.
         proxy_url = f"http://{user}:{pwd}@{host}:{port}"
         try:
             from youtube_transcript_api.proxies import GenericProxyConfig

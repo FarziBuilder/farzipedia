@@ -40,10 +40,9 @@ def _proxy_args() -> list:
     port = os.environ.get("WEBSHARE_PROXY_PORT", "80").strip()
 
     if user and pwd:
-        # Rotating endpoint requires `-rotate` suffix on the username.
-        # Static datacenter proxies do NOT — use the username verbatim.
-        if host == "p.webshare.io" and not user.endswith("-rotate"):
-            user = f"{user}-rotate"
+        # Use the username verbatim — different Webshare account types accept
+        # different username formats (bare, `-rotate`, `-country-XX-rotate`, etc.).
+        # If you want rotation, append `-rotate` yourself in the env var.
         return ["--proxy", f"http://{user}:{pwd}@{host}:{port}"]
     proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("HTTP_PROXY")
     if proxy:
