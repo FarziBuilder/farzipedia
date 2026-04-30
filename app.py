@@ -61,7 +61,7 @@ def _worker(job_id: str, url: str):
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse(request, "index.html")
 
 
 @app.post("/process")
@@ -94,8 +94,9 @@ def job(request: Request, job_id: str):
     if info["status"] == "done":
         return RedirectResponse(f"/blog/{job_id}", status_code=303)
     return templates.TemplateResponse(
+        request,
         "job.html",
-        {"request": request, "job_id": job_id, "info": info},
+        {"job_id": job_id, "info": info},
     )
 
 
@@ -164,9 +165,9 @@ def blog(request: Request, job_id: str):
     job_dir = JOBS_ROOT / job_id
     available = _resolve_screenshots(job_id, job_dir)
     return templates.TemplateResponse(
+        request,
         "blog.html",
         {
-            "request": request,
             "blog": blog_data,
             "resolve": _make_resolver(available),
             "format_ts": _format_seconds,
