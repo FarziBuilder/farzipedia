@@ -3,13 +3,18 @@
 
 FROM python:3.11-slim
 
-# System deps: ffmpeg for frame extraction, ca-certificates for TLS,
-# tini for proper signal handling under PID 1.
+# System deps:
+#  - ffmpeg: frame extraction
+#  - ca-certificates: TLS
+#  - tini: proper signal handling under PID 1
+#  - nodejs: JS runtime for yt-dlp to solve YouTube's n-parameter
+#    challenge (without it, yt-dlp gets only thumbnail formats)
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
         ffmpeg \
         ca-certificates \
         tini \
+        nodejs \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
