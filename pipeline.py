@@ -22,11 +22,29 @@ def _canonical_youtube_url(video_id: str) -> str:
 
 
 def _proxy_args() -> list:
-    """yt-dlp proxy flags, derived from env vars (Webshare or generic)."""
+    """yt-dlp proxy flags. Two modes:
+
+    1. Webshare rotating endpoint (default):
+       Set WEBSHARE_PROXY_USERNAME / WEBSHARE_PROXY_PASSWORD only.
+       Username gets `-rotate` appended automatically.
+
+    2. Webshare static datacenter proxy (free plan default):
+       Set WEBSHARE_PROXY_HOST and WEBSHARE_PROXY_PORT to a specific
+       IP:port from your Proxy List. Username is used as-is.
+
+    3. Any other HTTP/HTTPS proxy via HTTP_PROXY / HTTPS_PROXY.
+    """
     user = os.environ.get("WEBSHARE_PROXY_USERNAME", "").strip()
     pwd = os.environ.get("WEBSHARE_PROXY_PASSWORD", "").strip()
+    host = os.environ.get("WEBSHARE_PROXY_HOST", "p.webshare.io").strip()
+    port = os.environ.get("WEBSHARE_PROXY_PORT", "80").strip()
+
     if user and pwd:
-        return ["--proxy", f"http://{user}:{pwd}@p.webshare.io:80"]
+        # Rotating endpoint requires `-rotate` suffix on the username.
+        # Static datacenter proxies do NOT — use the username verbatim.
+        if host == "p.webshare.io" and not user.endswith("-rotate"):
+            user = f"{user}-rotate"
+        return ["--proxy", f"http://{user}:{pwd}@{host}:{port}"]
     proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("HTTP_PROXY")
     if proxy:
         return ["--proxy", proxy]

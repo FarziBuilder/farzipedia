@@ -49,15 +49,27 @@ def _normalize(fetched) -> List[dict]:
 
 
 def _build_proxy_config():
-    """Return a proxy_config object if env vars are set, else None."""
+    """Return a proxy_config object if env vars are set, else None.
+
+    Mirrors pipeline._proxy_args() so the transcript fetch and the
+    yt-dlp download go through the same proxy with consistent creds.
+    """
     user = os.environ.get("WEBSHARE_PROXY_USERNAME", "").strip()
     pwd = os.environ.get("WEBSHARE_PROXY_PASSWORD", "").strip()
+    host = os.environ.get("WEBSHARE_PROXY_HOST", "p.webshare.io").strip()
+    port = os.environ.get("WEBSHARE_PROXY_PORT", "80").strip()
+
     if user and pwd:
+        # Rotating endpoint requires -rotate suffix; static does not.
+        if host == "p.webshare.io" and not user.endswith("-rotate"):
+            user = f"{user}-rotate"
+        proxy_url = f"http://{user}:{pwd}@{host}:{port}"
         try:
-            from youtube_transcript_api.proxies import WebshareProxyConfig
-            return WebshareProxyConfig(proxy_username=user, proxy_password=pwd)
+            from youtube_transcript_api.proxies import GenericProxyConfig
+            return GenericProxyConfig(http_url=proxy_url, https_url=proxy_url)
         except ImportError:
             pass
+
     # Generic proxy fallback (HTTP_PROXY / HTTPS_PROXY)
     http_url = os.environ.get("HTTPS_PROXY") or os.environ.get("HTTP_PROXY")
     if http_url:
