@@ -77,7 +77,7 @@ def _yt_dlp_metadata(url: str) -> dict:
     """Fast metadata-only fetch (no download). Returns {} on failure."""
     args = [
         sys.executable, "-m", "yt_dlp",
-        "--extractor-args", "youtube:player_client=web,mweb,tv,web_safari,android,ios",
+        "--extractor-args", "youtube:player_client=web,mweb,tv,web_safari,android,ios;formats=missing_pot",
         "--no-playlist", "--skip-download", "--print-json", "--no-progress",
         "--socket-timeout", "20",
         *_proxy_args(),
@@ -102,8 +102,8 @@ def _yt_dlp_download(url: str, out_path: Path) -> dict:
     universal fallback YouTube always serves."""
     args = [
         sys.executable, "-m", "yt_dlp",
-        "--extractor-args", "youtube:player_client=web,mweb,tv,web_safari,android,ios",
-        "-f", "b[height<=480][ext=mp4]/18/best[height<=480]/best",
+        "--extractor-args", "youtube:player_client=web,mweb,tv,web_safari,android,ios;formats=missing_pot",
+        "-f", "b[height<=480][ext=mp4]/18/b[height<=720]/b/best/worst",
         "--no-playlist", "--print-json", "--no-progress",
         "--socket-timeout", "30",
         "--retries", "5",
