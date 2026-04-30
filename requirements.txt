@@ -5,3 +5,4 @@ python-multipart>=0.0.9
 anthropic>=0.40
 youtube-transcript-api>=1.0
 yt-dlp>=2025.10
+yt-dlp-ejs
