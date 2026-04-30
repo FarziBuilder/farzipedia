@@ -28,11 +28,20 @@ def _cookies_args() -> list:
     bot") requires an authenticated session for most video metadata.
     On Render, mount a YouTube cookies.txt as a Secret File at
     /etc/secrets/cookies.txt (or override the path with YT_COOKIES_FILE).
+
+    Render mounts secret files read-only, but yt-dlp tries to write
+    refreshed cookies back. Copy the file to /tmp on every call so
+    yt-dlp can update its mutable copy without crashing.
     """
-    path = os.environ.get("YT_COOKIES_FILE", "/etc/secrets/cookies.txt")
-    if os.path.isfile(path):
-        return ["--cookies", path]
-    return []
+    src = os.environ.get("YT_COOKIES_FILE", "/etc/secrets/cookies.txt")
+    if not os.path.isfile(src):
+        return []
+    dest = "/tmp/yt-cookies.txt"
+    try:
+        shutil.copyfile(src, dest)
+    except OSError:
+        return []
+    return ["--cookies", dest]
 
 
 def _proxy_args() -> list:
