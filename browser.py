@@ -414,21 +414,47 @@ def capture(video_id: str,
 
                 path = screenshots_dir / f"t{int(round(t))}.jpg"
                 try:
-                    bbox = page.locator("video").first.bounding_box(timeout=5_000)
-                    if bbox and bbox.get("width", 0) > 0 and bbox.get("height", 0) > 0:
-                        page.screenshot(
-                            path=str(path),
-                            clip={
-                                "x": bbox["x"],
-                                "y": bbox["y"],
-                                "width": bbox["width"],
-                                "height": bbox["height"],
-                            },
-                            type="jpeg",
-                            quality=80,
-                        )
+                    # Try canvas.drawImage first — reads directly from the
+                    # video element's media buffer, bypasses the compositor
+                    # screenshot path that's been giving us stale frames.
+                    data_url = page.evaluate(
+                        """() => {
+                            const v = document.querySelector('video');
+                            if (!v || v.videoWidth === 0 || v.videoHeight === 0) return null;
+                            try {
+                                const canvas = document.createElement('canvas');
+                                canvas.width = v.videoWidth;
+                                canvas.height = v.videoHeight;
+                                const ctx = canvas.getContext('2d');
+                                ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
+                                return canvas.toDataURL('image/jpeg', 0.85);
+                            } catch (e) {
+                                // Tainted canvas (cross-origin video) or other failure
+                                return null;
+                            }
+                        }"""
+                    )
+                    if isinstance(data_url, str) and data_url.startswith("data:image/"):
+                        import base64
+                        img_bytes = base64.b64decode(data_url.split(",", 1)[1])
+                        path.write_bytes(img_bytes)
                     else:
-                        page.screenshot(path=str(path), type="jpeg", quality=80)
+                        # Fallback: page.screenshot via bbox clip
+                        bbox = page.locator("video").first.bounding_box(timeout=5_000)
+                        if bbox and bbox.get("width", 0) > 0 and bbox.get("height", 0) > 0:
+                            page.screenshot(
+                                path=str(path),
+                                clip={
+                                    "x": bbox["x"],
+                                    "y": bbox["y"],
+                                    "width": bbox["width"],
+                                    "height": bbox["height"],
+                                },
+                                type="jpeg",
+                                quality=80,
+                            )
+                        else:
+                            page.screenshot(path=str(path), type="jpeg", quality=80)
                     frames.append({
                         "timestamp": float(t),
                         "actual_t": float(actual_t) if actual_t is not None else None,
