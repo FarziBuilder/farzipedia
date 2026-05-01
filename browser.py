@@ -71,40 +71,59 @@ def _parse_xml_captions(xml: str) -> List[dict]:
     return out
 
 
-def _wait_for_ad_to_end(page, log, max_wait_s: float = 25.0) -> bool:
+def _is_ad_active(state: dict, expected_duration: float = 0.0) -> bool:
+    """Two signals: the .ad-showing class AND a video.duration that
+    doesn't match the real video (ads have their own short duration)."""
+    if not state:
+        return False
+    if state.get("playerAdShowing"):
+        return True
+    actual = state.get("duration")
+    # NaN / None doesn't compare cleanly — treat as not-ad.
+    try:
+        actual = float(actual)
+    except (TypeError, ValueError):
+        return False
+    if not (actual > 0):
+        return False
+    # Real video durations rarely diverge from the metadata-reported
+    # duration by more than a few seconds. Ads are typically 5–60s.
+    if expected_duration and abs(actual - expected_duration) > 30:
+        return True
+    return False
+
+
+def _wait_for_ad_to_end(page, log, max_wait_s: float = 30.0,
+                         expected_duration: float = 0.0) -> bool:
     """If a YouTube ad is playing, try to skip it / wait for it to end.
 
-    Returns True if no ad is showing by the end (success), False if ad
-    is still running after max_wait_s.
+    Detects the ad by EITHER `.ad-showing` class OR a duration mismatch
+    (ad video element has its own short `duration`). Returns True when
+    no ad is detected, False if ad is still running after max_wait_s.
     """
     deadline = time.time() + max_wait_s
     saw_ad = False
     while time.time() < deadline:
-        state = page.evaluate(
+        full_state = page.evaluate(_VIDEO_STATE_JS) or {}
+        is_ad = _is_ad_active(full_state, expected_duration)
+        # Always try clicking the skip button if it's there (cheap).
+        page.evaluate(
             """() => {
-                const player = document.getElementById('movie_player');
-                const isAd = !!(player && player.classList.contains('ad-showing'));
-                // Try clicking any visible skip-ad button
-                let clicked = null;
-                if (isAd) {
-                    const skip = document.querySelector(
-                        '.ytp-skip-ad-button, .ytp-ad-skip-button, '
-                        + '.ytp-ad-skip-button-modern, .videoAdUiSkipButton'
-                    );
-                    if (skip) { try { skip.click(); clicked = skip.className; } catch (e) {} }
-                }
-                return { isAd, clicked };
+                const skip = document.querySelector(
+                    '.ytp-skip-ad-button, .ytp-ad-skip-button, '
+                    + '.ytp-ad-skip-button-modern, .videoAdUiSkipButton'
+                );
+                if (skip) { try { skip.click(); } catch (e) {} }
             }"""
         )
-        if not state.get("isAd"):
+        if not is_ad:
             if saw_ad:
                 log("Ad ended / skipped")
             return True
         if not saw_ad:
-            log("AD playing — waiting / trying skip button")
+            log(f"AD detected (adShowing={full_state.get('playerAdShowing')}, "
+                f"duration={full_state.get('duration')} vs expected={expected_duration}) — waiting")
             saw_ad = True
-        if state.get("clicked"):
-            log(f"Clicked skip button: {state.get('clicked')}")
         page.wait_for_timeout(800)
     log(f"Ad still playing after {max_wait_s}s — proceeding anyway")
     return False
@@ -412,8 +431,10 @@ def capture(video_id: str,
             # If a pre-roll ad is playing, wait for it / skip it before
             # we begin frame capture. Otherwise the FIRST seek lands on
             # ad timeline and we screenshot the ad instead of the video.
-            if state_after_play and state_after_play.get("playerAdShowing"):
-                _wait_for_ad_to_end(page, log, max_wait_s=30.0)
+            expected_duration = float(details.get("duration") or 0.0)
+            if _is_ad_active(state_after_play, expected_duration):
+                _wait_for_ad_to_end(page, log, max_wait_s=30.0,
+                                    expected_duration=expected_duration)
 
             duration = details.get("duration") or 0.0
 
@@ -463,6 +484,12 @@ def capture(video_id: str,
                             timeout=10_000,
                         )
                         log("Recovered from error state")
+                        # Re-navigation kicks off a fresh pre-roll ad —
+                        # wait for it before continuing.
+                        post_recover_state = page.evaluate(_VIDEO_STATE_JS)
+                        if _is_ad_active(post_recover_state, expected_duration):
+                            _wait_for_ad_to_end(page, log, max_wait_s=30.0,
+                                                expected_duration=expected_duration)
                 except Exception as e:
                     log(f"Error-state check FAILED: {e}")
 
@@ -483,13 +510,18 @@ def capture(video_id: str,
                     }}"""
                 )
                 log(f"seekTo({t}) called")
-                # If a mid-roll ad fired (or YouTube replaced our seek
-                # with a fresh pre-roll), wait it out before we screenshot.
-                page.wait_for_timeout(400)
+                # YouTube's ad insertion fires 1-3s AFTER the seek, not
+                # immediately, so a 400ms check misses it. Wait 2s, then
+                # use the duration-mismatch detector (more reliable than
+                # the .ad-showing class which can be missing on first frames).
+                page.wait_for_timeout(2_000)
                 state_after_seek = page.evaluate(_VIDEO_STATE_JS)
-                if state_after_seek and state_after_seek.get("playerAdShowing"):
-                    log(f"Ad detected at t={t} — waiting for it to end")
-                    _wait_for_ad_to_end(page, log, max_wait_s=20.0)
+                if _is_ad_active(state_after_seek, expected_duration):
+                    log(f"Ad detected at t={t} (adShowing="
+                        f"{state_after_seek.get('playerAdShowing')}, "
+                        f"duration={state_after_seek.get('duration')}) — waiting")
+                    _wait_for_ad_to_end(page, log, max_wait_s=30.0,
+                                        expected_duration=expected_duration)
                     # After the ad, re-issue the seek (player may have
                     # auto-played past our target during the ad).
                     page.evaluate(
@@ -499,6 +531,7 @@ def capture(video_id: str,
                         }}"""
                     )
                     log(f"Re-seeked to {t} after ad")
+                    page.wait_for_timeout(800)
 
                 # Wait for the seek to FULLY complete:
                 #   1. seeking === false (player has finished the seek operation)
