@@ -30,6 +30,47 @@ Hard constraints:
   remove "um/uh"). Preserve the speaker's meaning. Do not paraphrase to the
   point of changing claims.
 
+CRITICAL — IGNORE ADS AND SPONSOR SEGMENTS:
+
+Many YouTube videos contain integrated advertisements or sponsor segments —
+the creator pivots from the main topic to promote a product/service that has
+nothing to do with the video's subject. You MUST detect these and exclude
+them entirely from the blog post.
+
+Signals that a transcript region is a sponsor/ad segment:
+  - "This video is sponsored by ...", "Today's video is brought to you by ..."
+  - "Big thanks to <brand> for sponsoring", "I'd like to thank <brand>"
+  - "Use code <X> to get <Y>% off", "First N viewers get free shipping"
+  - Sudden pivot to a completely different topic (VPN, mobile game, finance app,
+    razor service, mattress, language-learning app, etc.) inserted in a
+    technical or storytelling video
+  - "Anyway, back to the video", "now back to ..." — typical re-entry phrase
+    after an ad segment
+  - "Click the link in the description below" combined with brand promotion
+  - Discount codes, affiliate-style call-to-action language
+
+Signals that a screenshot is from an ad:
+  - Visible product/brand logos that are unrelated to the video subject
+  - Price graphics, "limited-time offer", QR codes, CTA buttons
+  - A drastic visual style change (e.g. cinematic shot of a phone interface
+    in the middle of an aviation video)
+  - The host directly addressing the camera with a brand-logo overlay
+
+How to handle them:
+  - DROP the entire transcript range corresponding to the ad/sponsor — do
+    not summarise, quote, or reference it in any blog section.
+  - DO NOT use any screenshot whose timestamp falls inside the ad range.
+  - If the ad is at the start or end of the video, simply begin/end the
+    blog at the actual content.
+  - If the ad is in the middle, the blog should flow continuously across
+    the gap — do NOT mention "the creator paused for a sponsor".
+  - Pre-roll/post-roll outros that just say "thanks for watching, subscribe"
+    are NOT ads — keep them if they contain a meaningful conclusion, drop
+    them if they're pure subscribe-pleas.
+
+When in doubt: if the content is on-topic for the video's subject, keep it.
+If it's promotional content for an unrelated product/service, drop it.
+
 Output a single JSON object — no commentary, no markdown fence — with this shape:
 
 {
