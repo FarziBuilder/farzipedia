@@ -23,6 +23,48 @@ from pathlib import Path
 from typing import List, Optional
 
 
+def _load_youtube_cookies() -> List[dict]:
+    """Load YouTube cookies from /etc/secrets/cookies.txt (Netscape format).
+
+    Returns Playwright-compatible cookie dicts. If no file is present,
+    returns []. Lets the browser session pretend to be a logged-in user,
+    which usually bypasses YouTube's "Sign in to confirm you're not a bot"
+    challenge.
+    """
+    path = os.environ.get("YT_COOKIES_FILE", "/etc/secrets/cookies.txt")
+    if not os.path.isfile(path):
+        return []
+    cookies: List[dict] = []
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            for raw in f:
+                line = raw.strip()
+                if not line or line.startswith("#"):
+                    continue
+                parts = line.split("\t")
+                # Netscape format: domain, flag, path, secure, expiry, name, value
+                if len(parts) < 7:
+                    continue
+                domain, _flag, cpath, secure, expiry, name, value = parts[:7]
+                try:
+                    expires = int(expiry)
+                except ValueError:
+                    expires = -1
+                cookies.append({
+                    "name": name,
+                    "value": value,
+                    "domain": domain,
+                    "path": cpath,
+                    "secure": secure.upper() == "TRUE",
+                    "httpOnly": False,
+                    **({"expires": expires} if expires > 0 else {}),
+                    "sameSite": "Lax",
+                })
+    except OSError:
+        return []
+    return cookies
+
+
 def _parse_xml_captions(xml: str) -> List[dict]:
     """Parse YouTube's timed-text XML into [{start, duration, text}]."""
     out: List[dict] = []
@@ -111,6 +153,20 @@ def capture(video_id: str,
         try:
             # Most Scraping Browser sessions provide a default context already.
             context = browser.contexts[0] if browser.contexts else browser.new_context()
+
+            # Preload YouTube cookies if a cookies.txt was mounted as a
+            # Render Secret File. This is what bypasses the "Sign in to
+            # confirm you're not a bot" challenge — YouTube treats the
+            # session as logged-in.
+            youtube_cookies = _load_youtube_cookies()
+            if youtube_cookies:
+                try:
+                    context.add_cookies(youtube_cookies)
+                except Exception:
+                    # If the cookie format is bad, continue without —
+                    # we'll get the bot challenge but at least the session opens.
+                    pass
+
             page = context.pages[0] if context.pages else context.new_page()
 
             page.goto(f"https://www.youtube.com/watch?v={video_id}",
