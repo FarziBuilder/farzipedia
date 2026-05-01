@@ -85,20 +85,36 @@ def _parse_xml_captions(xml: str) -> List[dict]:
 
 
 def _hide_overlay_js() -> str:
-    """Hide the YouTube player chrome so screenshots are clean. Also
-    forces the video element visible / on-screen / un-covered, which is
-    needed for `locator.screenshot` to not time out on 'not visible'."""
+    """Hide the YouTube player chrome + dismiss every consent dialog
+    YouTube/Google might throw at us, then force the <video> visible
+    and on-screen for screenshots."""
     return """
-    // Dismiss EU consent banner if present
-    const consentSelectors = [
+    // Click any consent button by aria-label or text content.
+    // Covers both old YouTube consent banner and new Google unified one.
+    const clickFirst = (selectors) => {
+      for (const sel of selectors) {
+        const btn = document.querySelector(sel);
+        if (btn) { try { btn.click(); return true; } catch (e) {} }
+      }
+      return false;
+    };
+    clickFirst([
+      // YouTube-specific
       'tp-yt-paper-button[aria-label*="Accept"]',
       'tp-yt-paper-button[aria-label*="Reject"]',
       'button[aria-label*="Accept all"]',
       'button[aria-label*="Reject all"]',
-    ];
-    for (const sel of consentSelectors) {
-      const btn = document.querySelector(sel);
-      if (btn) try { btn.click(); } catch (e) {}
+      // Google unified consent ("Before you continue to YouTube")
+      'button[aria-label*="Reject the use"]',
+      'button[aria-label*="Accept the use"]',
+      'form[action*="consent"] button[type="submit"]',
+    ]);
+    // Brute-force fallback: any visible button whose text matches
+    for (const b of document.querySelectorAll('button, [role="button"]')) {
+      const t = (b.innerText || b.textContent || '').trim();
+      if (/^(Reject all|Accept all|I agree)$/i.test(t)) {
+        try { b.click(); break; } catch (e) {}
+      }
     }
     // Hide player chrome
     const hideSel = [
@@ -106,6 +122,8 @@ def _hide_overlay_js() -> str:
       '.ytp-gradient-top', '.ytp-cc-window-container', '.ytp-pause-overlay',
       '.ytp-watermark', '.ytp-popup', '.ytp-spinner', '.ytp-watch-later-icon',
       'ytd-popup-container', 'tp-yt-paper-dialog',
+      // Google consent dialog containers
+      'ytd-consent-bump-v2-lightbox', 'ytd-consent-bump-lightbox',
     ];
     for (const s of hideSel) {
       document.querySelectorAll(s).forEach(e => e.style.display = 'none');
@@ -154,6 +172,23 @@ def capture(video_id: str,
             # Most Scraping Browser sessions provide a default context already.
             context = browser.contexts[0] if browser.contexts else browser.new_context()
 
+            # Preset Google's consent cookies for both .youtube.com and
+            # .google.com so the "Before you continue to YouTube" unified
+            # consent dialog never appears.
+            try:
+                context.add_cookies([
+                    {"name": "CONSENT", "value": "YES+cb",
+                     "domain": ".youtube.com", "path": "/"},
+                    {"name": "CONSENT", "value": "YES+cb",
+                     "domain": ".google.com", "path": "/"},
+                    {"name": "SOCS", "value": "CAESEwgDEgk0ODE3Nzk3MjQaAmVuIAEaBgiA_LyaBg",
+                     "domain": ".youtube.com", "path": "/"},
+                    {"name": "SOCS", "value": "CAESEwgDEgk0ODE3Nzk3MjQaAmVuIAEaBgiA_LyaBg",
+                     "domain": ".google.com", "path": "/"},
+                ])
+            except Exception:
+                pass
+
             # Preload YouTube cookies if a cookies.txt was mounted as a
             # Render Secret File. This is what bypasses the "Sign in to
             # confirm you're not a bot" challenge — YouTube treats the
@@ -192,6 +227,23 @@ def capture(video_id: str,
                     landing_info["screenshot"] = landing_path
                 except Exception:
                     pass
+
+            # Try clicking a consent button right after navigation —
+            # before yt's wait, in case the consent dialog is blocking
+            # ytInitialPlayerResponse from loading.
+            for sel in (
+                'button[aria-label*="Reject the use"]',
+                'button[aria-label*="Accept the use"]',
+                'tp-yt-paper-button[aria-label*="Reject"]',
+                'tp-yt-paper-button[aria-label*="Accept"]',
+                'form[action*="consent"] button[type="submit"]',
+            ):
+                try:
+                    page.click(sel, timeout=2_000)
+                    page.wait_for_timeout(500)
+                    break
+                except Exception:
+                    continue
 
             # Wait for the player JSON to be available + the video element to mount.
             try:
