@@ -149,7 +149,8 @@ def capture(video_id: str,
             planned_timestamps: List[float],
             screenshots_dir: Path,
             languages: Optional[List[str]] = None,
-            debug_landing: bool = False) -> dict:
+            debug_landing: bool = False,
+            planner_factory=None) -> dict:
     """Capture metadata + transcript + frames from a YouTube video.
 
     Returns:
@@ -296,11 +297,14 @@ def capture(video_id: str,
 
             snippets: List[dict] = []
             if caption_url:
+                # Force the legacy XML (srv1) format. YouTube has been
+                # serving JSON3 by default which our parser doesn't handle.
+                fetch_url = caption_url + ("&" if "?" in caption_url else "?") + "fmt=srv1"
                 try:
-                    resp = context.request.get(caption_url, timeout=30_000)
+                    resp = context.request.get(fetch_url, timeout=30_000)
                     if resp.ok:
                         snippets = _parse_xml_captions(resp.text())
-                        log(f"Parsed {len(snippets)} caption snippets")
+                        log(f"Parsed {len(snippets)} caption snippets (srv1)")
                     else:
                         log(f"Caption fetch returned status {resp.status}")
                 except Exception as e:
@@ -351,6 +355,19 @@ def capture(video_id: str,
             log("State after play()", **(state_after_play or {}))
 
             duration = details.get("duration") or 0.0
+
+            # If a planner_factory was given, call it now (after we have
+            # metadata + transcript) to get the actual list of timestamps.
+            # This lets the caller use one browser session for both meta
+            # extraction AND frame capture.
+            if planner_factory is not None and not planned_timestamps:
+                try:
+                    planned_timestamps = planner_factory(details, snippets) or []
+                    log(f"planner_factory returned {len(planned_timestamps)} timestamps")
+                except Exception as e:
+                    log(f"planner_factory FAILED: {e}")
+                    planned_timestamps = []
+
             frames: List[dict] = []
             session_killed = False
             for i, t in enumerate(planned_timestamps):
@@ -425,7 +442,7 @@ def capture(video_id: str,
                             }}
                             return false;
                         }}""",
-                        timeout=6_000,
+                        timeout=20_000,
                     )
                     log(f"Seek COMPLETE: not-seeking + readyState>=3 + buffer covers {t}")
                 except Exception as e:
@@ -436,7 +453,7 @@ def capture(video_id: str,
                         state = page.evaluate(_VIDEO_STATE_JS) or {}
                     except Exception:
                         state = {"err": "page closed"}
-                    log(f"Seek wait TIMED OUT after 6s — state: "
+                    log(f"Seek wait TIMED OUT after 20s — state: "
                         f"seeking={state.get('seeking')} readyState={state.get('readyState')} "
                         f"currentTime={state.get('currentTime')} bufferedRanges={state.get('bufferedRanges')} "
                         f"firstBuffered={state.get('firstBuffered')}")

@@ -60,56 +60,64 @@ def run(url: str, job_dir: Path,
     # then re-plan if we want cue-aware sampling. For v1, do single pass.
 
     step("Opening remote browser", 0.10)
-    # Plan first with a placeholder duration; refine after metadata.
-    # Single-pass capture: ask for 8 evenly-spaced frames as a baseline,
-    # then we'll do cue-based planning in a future iteration.
+    # Single browser session for everything: capture() opens the page,
+    # extracts metadata + transcript, then captures the planned frames
+    # in the SAME session. We use a metadata-aware planner_factory so
+    # capture() can call back into the planner once duration is known.
+    def planner_factory(meta_dict, snippets_list):
+        """Called by capture() once metadata + transcript are extracted.
+        Returns the list of timestamps to seek to."""
+        nonlocal title, uploader, duration, thumbnail, snippets
+        title = meta_dict.get("title", "")
+        uploader = meta_dict.get("uploader", "")
+        duration = float(meta_dict.get("duration") or 0.0)
+        thumbnail = meta_dict.get("thumbnail", "")
+        snippets = snippets_list
 
-    # We need to know duration BEFORE calling capture() with timestamps,
-    # so we either (a) call capture twice or (b) ask capture to give us
-    # metadata in one trip and frames in another. Cheapest: pre-fetch
-    # via a no-frames capture, then real capture with planned timestamps.
-    initial = capture(video_id, planned_timestamps=[], screenshots_dir=shots_dir)
-    meta = initial["meta"]
-    snippets = initial["snippets"]
-    title = meta.get("title", "")
-    uploader = meta.get("uploader", "")
-    duration = float(meta.get("duration") or 0.0)
-    thumbnail = meta.get("thumbnail", "")
+        if on_meta:
+            on_meta({
+                "title": title,
+                "uploader": uploader,
+                "duration": duration,
+                "thumbnail": thumbnail,
+                "video_id": video_id,
+                "eta_seconds": estimate_eta_seconds(duration) if duration else None,
+            })
 
-    if on_meta:
-        on_meta({
-            "title": title,
-            "uploader": uploader,
-            "duration": duration,
-            "thumbnail": thumbnail,
-            "video_id": video_id,
-            "eta_seconds": estimate_eta_seconds(duration) if duration else None,
-        })
+        # Trivia in a daemon thread, runs in parallel with frame capture
+        if on_trivia:
+            def _trivia_worker():
+                try:
+                    items = trivia_mod.generate(title=title, channel=uploader, description="")
+                    if on_trivia:
+                        on_trivia(items)
+                except Exception:
+                    pass
+            threading.Thread(target=_trivia_worker, daemon=True).start()
 
-    # Trivia generation kicks off in parallel with the second capture
-    def _trivia_worker():
-        try:
-            items = trivia_mod.generate(title=title, channel=uploader, description="")
-            if on_trivia:
-                on_trivia(items)
-        except Exception:
-            pass
+        if not snippets_list:
+            # Plan periodic-only without transcript-driven cues
+            duration_for_plan = duration or 600.0
+            n = min(40, max(8, int(duration_for_plan / 60 * 3)))
+            return [duration_for_plan * (i + 0.5) / n for i in range(n)]
 
-    if on_trivia:
-        threading.Thread(target=_trivia_worker, daemon=True).start()
+        max_frames = min(60, max(20, int(duration / 60 * 3)))
+        return plan_timestamps(snippets_list, duration, max_total=max_frames)
 
-    if not snippets:
-        raise RuntimeError(
-            "No transcript captions were found on the YouTube page. "
-            "The video may have captions disabled."
-        )
+    # Initialise outer-scope vars that planner_factory will populate
+    title = ""
+    uploader = ""
+    duration = 0.0
+    thumbnail = ""
+    snippets = []
 
-    step("Planning capture moments", 0.40)
-    max_frames = min(60, max(20, int(duration / 60 * 3)))
-    timestamps = plan_timestamps(snippets, duration, max_total=max_frames)
-
-    step(f"Capturing {len(timestamps)} frames in browser", 0.50)
-    cap = capture(video_id, planned_timestamps=timestamps, screenshots_dir=shots_dir)
+    step("Capturing video", 0.30)
+    cap = capture(
+        video_id,
+        planned_timestamps=[],  # signal: use planner_factory
+        screenshots_dir=shots_dir,
+        planner_factory=planner_factory,
+    )
     frames = cap["frames"]
 
     step("Asking Claude to write the post", 0.75)
