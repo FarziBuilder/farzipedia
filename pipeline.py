@@ -120,6 +120,21 @@ def run(url: str, job_dir: Path,
     )
     frames = cap["frames"]
 
+    # Persist the capture log to disk for post-mortem debugging.
+    try:
+        log_lines = []
+        for entry in cap.get("logs") or []:
+            t_s = entry.get("t", 0)
+            msg = entry.get("msg", "")
+            extras = {k: v for k, v in entry.items() if k not in ("t", "msg")}
+            extras_str = ""
+            if extras:
+                extras_str = "  " + " | ".join(f"{k}={v}" for k, v in extras.items())
+            log_lines.append(f"[{t_s:6.2f}s] {msg}{extras_str}")
+        (job_dir / "capture.log").write_text("\n".join(log_lines), encoding="utf-8")
+    except Exception:
+        pass
+
     step("Asking Claude to write the post", 0.75)
     blog = analyze(snippets, frames, video_title=title)
 
