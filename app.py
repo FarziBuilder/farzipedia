@@ -298,7 +298,10 @@ def debug_download(url: str):
         # Pick 6 evenly-spaced timestamps; we'll discover duration from
         # the browser session, then re-pick if our placeholder was off.
         # For the debug endpoint we just use a coarse 0–600s sweep.
-        placeholder_ts = [10.0, 60.0, 120.0, 180.0, 240.0, 300.0]
+        # Keep this short so the whole capture finishes within Browserless
+        # free-tier session timeout (~30s). Three timestamps is enough to
+        # verify seek-and-screenshot is working end-to-end.
+        placeholder_ts = [15.0, 90.0, 240.0]
         out_html.append("<h2>① Open remote browser + capture</h2>")
         t0 = _time.time()
         result = capture(video_id, planned_timestamps=placeholder_ts,

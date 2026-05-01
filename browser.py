@@ -306,7 +306,7 @@ def capture(video_id: str,
             try:
                 page.wait_for_function(
                     "() => { const v = document.querySelector('video'); return v && v.readyState >= 2; }",
-                    timeout=20_000,
+                    timeout=10_000,
                 )
             except Exception:
                 pass
@@ -314,12 +314,8 @@ def capture(video_id: str,
             # First pass at hiding overlays.
             page.evaluate(_hide_overlay_js())
 
-            # Headless Chromium blocks autoplay for *unmuted* videos — we
-            # have to mute first or play() silently rejects and the stream
-            # never starts. (That's why all our screenshots were the
-            # poster image.) Mute the player, then play, then wait for
-            # currentTime to actually advance — that's our signal that
-            # MSE segments are loading and frames are being decoded.
+            # Mute then play (autoplay block in headless Chromium requires
+            # muted), wait briefly for currentTime to advance.
             try:
                 page.evaluate(
                     """() => {
@@ -334,18 +330,14 @@ def capture(video_id: str,
                         try { v && v.play().catch(() => {}); } catch (e) {}
                     }"""
                 )
-                # Wait for actual playback — currentTime advancing AND
-                # readyState HAVE_FUTURE_DATA (3) or HAVE_ENOUGH_DATA (4).
                 page.wait_for_function(
                     """() => {
                         const v = document.querySelector('video');
                         return v && !v.paused && v.currentTime > 0.5 && v.readyState >= 3;
                     }""",
-                    timeout=20_000,
+                    timeout=8_000,
                 )
             except Exception:
-                # If playback truly never starts, screenshots will still
-                # be the poster — but let's continue and see how far we get.
                 pass
 
             duration = details.get("duration") or 0.0
@@ -381,18 +373,18 @@ def capture(video_id: str,
                         }} else {{
                             v.currentTime = {t};
                         }}
-                        // Safety timeout: 6s — fall back to whatever frame is current
+                        // Safety timeout: 3s — fall back to whatever frame is current
                         setTimeout(() => {{
                             v.removeEventListener('seeked', onSeeked);
                             v.removeEventListener('canplay', onCanplay);
                             resolve(v.currentTime);
-                        }}, 6000);
+                        }}, 3000);
                     }})"""
                 )
                 # Pause AFTER the seek completed, otherwise the frame
                 # advances during the screenshot.
                 page.evaluate("document.querySelector('video')?.pause()")
-                page.wait_for_timeout(400)
+                page.wait_for_timeout(200)
                 # Re-hide overlays + scroll into view in case YouTube re-rendered.
                 page.evaluate(_hide_overlay_js())
 
