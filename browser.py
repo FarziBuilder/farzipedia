@@ -302,98 +302,71 @@ def capture(video_id: str,
                     snippets = _parse_xml_captions(resp.text())
 
             # ----- Frame captures -----
-            # Make sure the player is ready before doing anything.
-            try:
-                page.wait_for_function(
-                    "() => { const v = document.querySelector('video'); return v && v.readyState >= 2; }",
-                    timeout=10_000,
-                )
-            except Exception:
-                pass
-
-            # First pass at hiding overlays.
-            page.evaluate(_hide_overlay_js())
-
-            # Mute then play (autoplay block in headless Chromium requires
-            # muted), wait briefly for currentTime to advance.
-            try:
-                page.evaluate(
-                    """() => {
-                        const v = document.querySelector('video');
-                        if (v) { v.muted = true; v.volume = 0; }
-                        const player = document.getElementById('movie_player');
-                        if (player) {
-                            try { player.mute && player.mute(); } catch (e) {}
-                            try { player.setVolume && player.setVolume(0); } catch (e) {}
-                            try { player.playVideo && player.playVideo(); } catch (e) {}
-                        }
-                        try { v && v.play().catch(() => {}); } catch (e) {}
-                    }"""
-                )
-                page.wait_for_function(
-                    """() => {
-                        const v = document.querySelector('video');
-                        return v && !v.paused && v.currentTime > 0.5 && v.readyState >= 3;
-                    }""",
-                    timeout=8_000,
-                )
-            except Exception:
-                pass
-
+            # Strategy: navigate fresh to youtube.com/watch?v=ID&t=Ns for each
+            # planned timestamp. In-session multi-seek triggered YouTube's
+            # anti-bot defenses (player went to "Video unavailable" after the
+            # first seek). Per-timestamp navigation looks like normal users
+            # clicking timestamped links and is reliably accepted.
             duration = details.get("duration") or 0.0
             frames: List[dict] = []
+
             for t in planned_timestamps:
                 t = max(0.5, min(t, max(duration - 1, 1.0)))
 
-                # Seek via YouTube's player API (MSE-aware), then wait for
-                # both `seeked` AND `canplay` events — `seeked` fires when
-                # currentTime jumped, `canplay` fires when enough data is
-                # decoded for that timestamp to render. We need both for
-                # the screenshot to capture the actual new frame.
-                actual_t = page.evaluate(
-                    f"""() => new Promise((resolve) => {{
-                        const v = document.querySelector('video');
-                        if (!v) return resolve(null);
-                        let seeked = false, canplay = false;
-                        const tryFinish = () => {{
-                            if (seeked && canplay) {{
-                                v.removeEventListener('seeked', onSeeked);
-                                v.removeEventListener('canplay', onCanplay);
-                                resolve(v.currentTime);
-                            }}
-                        }};
-                        const onSeeked  = () => {{ seeked = true; tryFinish(); }};
-                        const onCanplay = () => {{ canplay = true; tryFinish(); }};
-                        v.addEventListener('seeked',  onSeeked,  {{ once: true }});
-                        v.addEventListener('canplay', onCanplay, {{ once: true }});
+                target_url = f"https://www.youtube.com/watch?v={video_id}&t={int(t)}s"
+                try:
+                    page.goto(target_url, wait_until="domcontentloaded", timeout=20_000)
+                except Exception:
+                    continue
 
-                        const player = document.getElementById('movie_player');
-                        if (player && player.seekTo) {{
-                            player.seekTo({t}, true);
-                        }} else {{
-                            v.currentTime = {t};
-                        }}
-                        // Safety timeout: 3s — fall back to whatever frame is current
-                        setTimeout(() => {{
-                            v.removeEventListener('seeked', onSeeked);
-                            v.removeEventListener('canplay', onCanplay);
-                            resolve(v.currentTime);
-                        }}, 3000);
-                    }})"""
-                )
-                # Pause AFTER the seek completed, otherwise the frame
-                # advances during the screenshot.
-                page.evaluate("document.querySelector('video')?.pause()")
-                page.wait_for_timeout(200)
-                # Re-hide overlays + scroll into view in case YouTube re-rendered.
+                # Dismiss any consent dialog that re-appeared.
                 page.evaluate(_hide_overlay_js())
 
-                path = screenshots_dir / f"t{int(round(t))}.jpg"
-                # Use page.screenshot with a clip rectangle around the video,
-                # which works even when the video element is partially-covered
-                # (locator.screenshot insists on full visibility and times out).
-                bbox = page.locator("video").first.bounding_box(timeout=5_000)
+                # Wait for the video element to mount.
                 try:
+                    page.wait_for_function(
+                        "() => document.querySelector('video')?.readyState >= 2",
+                        timeout=10_000,
+                    )
+                except Exception:
+                    continue
+
+                # Mute + play (headless autoplay needs mute) so the actual
+                # frame at this timestamp gets decoded.
+                try:
+                    page.evaluate(
+                        """() => {
+                            const v = document.querySelector('video');
+                            if (v) { v.muted = true; v.volume = 0; }
+                            const player = document.getElementById('movie_player');
+                            if (player) {
+                                try { player.mute && player.mute(); } catch (e) {}
+                                try { player.setVolume && player.setVolume(0); } catch (e) {}
+                                try { player.playVideo && player.playVideo(); } catch (e) {}
+                            }
+                            try { v && v.play().catch(() => {}); } catch (e) {}
+                        }"""
+                    )
+                    # Wait for the video to actually be playing near t.
+                    page.wait_for_function(
+                        f"""() => {{
+                            const v = document.querySelector('video');
+                            return v && v.readyState >= 3 && v.currentTime >= {t * 0.7};
+                        }}""",
+                        timeout=8_000,
+                    )
+                except Exception:
+                    pass
+
+                # Pause and grab the actual currentTime, hide overlays.
+                actual_t = page.evaluate("document.querySelector('video')?.currentTime")
+                page.evaluate("document.querySelector('video')?.pause()")
+                page.evaluate(_hide_overlay_js())
+                page.wait_for_timeout(300)
+
+                path = screenshots_dir / f"t{int(round(t))}.jpg"
+                try:
+                    bbox = page.locator("video").first.bounding_box(timeout=5_000)
                     if bbox and bbox.get("width", 0) > 0 and bbox.get("height", 0) > 0:
                         page.screenshot(
                             path=str(path),
@@ -407,7 +380,6 @@ def capture(video_id: str,
                             quality=80,
                         )
                     else:
-                        # Fallback — full viewport screenshot.
                         page.screenshot(path=str(path), type="jpeg", quality=80)
                     frames.append({
                         "timestamp": float(t),
@@ -415,7 +387,6 @@ def capture(video_id: str,
                         "path": path,
                     })
                 except Exception:
-                    # Skip this frame rather than killing the whole capture.
                     continue
 
             return {
