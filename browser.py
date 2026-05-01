@@ -311,31 +311,57 @@ def capture(video_id: str,
             except Exception:
                 pass
 
-            # First pass at hiding overlays + dismissing consent before seeking.
+            # First pass at hiding overlays.
             page.evaluate(_hide_overlay_js())
-            page.evaluate("document.querySelector('video')?.pause()")
+
+            # Briefly start playback so the video actually begins buffering.
+            # Setting currentTime alone does NOT load YouTube's MSE-streamed
+            # segments — the video element keeps showing the poster frame
+            # until playback has triggered segment downloads. So we kick
+            # play() once, let it buffer ~1.5s, then start seeking.
+            try:
+                page.evaluate(
+                    """() => {
+                        const player = document.getElementById('movie_player');
+                        if (player && player.playVideo) player.playVideo();
+                        else document.querySelector('video')?.play();
+                    }"""
+                )
+                page.wait_for_timeout(1500)
+            except Exception:
+                pass
 
             duration = details.get("duration") or 0.0
             frames: List[dict] = []
             for t in planned_timestamps:
                 t = max(0.5, min(t, max(duration - 1, 1.0)))
+
+                # Use YouTube's player API to seek (it handles MSE segment
+                # loading correctly). Fall back to currentTime if that's not
+                # available. Then await the `seeked` event — this is what
+                # tells us the new frame is actually loaded, as opposed to
+                # currentTime which updates immediately.
                 page.evaluate(
-                    f"""() => {{
+                    f"""() => new Promise((resolve) => {{
                         const v = document.querySelector('video');
-                        if (!v) return;
-                        v.pause();
-                        v.currentTime = {t};
-                    }}"""
+                        if (!v) return resolve();
+                        const finish = () => {{
+                            v.removeEventListener('seeked', finish);
+                            v.pause();
+                            resolve();
+                        }};
+                        v.addEventListener('seeked', finish, {{ once: true }});
+                        const player = document.getElementById('movie_player');
+                        if (player && player.seekTo) {{
+                            player.seekTo({t}, true);
+                        }} else {{
+                            v.currentTime = {t};
+                        }}
+                        // Safety timeout: 5s
+                        setTimeout(finish, 5000);
+                    }})"""
                 )
-                # Wait for the seek to render a fresh frame.
-                try:
-                    page.wait_for_function(
-                        f"() => Math.abs((document.querySelector('video')?.currentTime ?? 0) - {t}) < 0.5",
-                        timeout=8_000,
-                    )
-                except Exception:
-                    pass
-                page.wait_for_timeout(400)
+                page.wait_for_timeout(250)
                 # Re-hide overlays + scroll into view in case YouTube re-rendered.
                 page.evaluate(_hide_overlay_js())
 
