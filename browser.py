@@ -301,86 +301,115 @@ def capture(video_id: str,
                 if resp.ok:
                     snippets = _parse_xml_captions(resp.text())
 
-            # ----- Frame captures via the EMBED player -----
-            # Strategy: for each planned timestamp, navigate to
-            #   https://www.youtube.com/embed/VIDEO_ID?start=N&autoplay=1&mute=1
-            # The embed player loads in ~2-3s (vs 5-7s for the full watch
-            # page), has no consent dialog, no header, no comments — just
-            # a player. ?start=N tells YouTube to begin playback at that
-            # timestamp, so no in-session seeking (which we found triggers
-            # anti-bot after the first seek).
+            # ----- Frame captures (in-session seeking on watch page) -----
+            # Reverted from per-frame navigation / embed approach.
+            # In-session seeking is faster but can trigger YouTube's anti-bot
+            # after multiple rapid seeks ("Video unavailable" state). We
+            # mitigate with delays + recovery checks.
+            try:
+                page.wait_for_function(
+                    "() => { const v = document.querySelector('video'); return v && v.readyState >= 2; }",
+                    timeout=10_000,
+                )
+            except Exception:
+                pass
+
+            page.evaluate(_hide_overlay_js())
+
+            # Mute then play (autoplay block in headless Chromium requires
+            # muted), wait briefly for currentTime to advance.
+            try:
+                page.evaluate(
+                    """() => {
+                        const v = document.querySelector('video');
+                        if (v) { v.muted = true; v.volume = 0; }
+                        const player = document.getElementById('movie_player');
+                        if (player) {
+                            try { player.mute && player.mute(); } catch (e) {}
+                            try { player.setVolume && player.setVolume(0); } catch (e) {}
+                            try { player.playVideo && player.playVideo(); } catch (e) {}
+                        }
+                        try { v && v.play().catch(() => {}); } catch (e) {}
+                    }"""
+                )
+                page.wait_for_function(
+                    """() => {
+                        const v = document.querySelector('video');
+                        return v && !v.paused && v.currentTime > 0.5 && v.readyState >= 3;
+                    }""",
+                    timeout=8_000,
+                )
+            except Exception:
+                pass
+
             duration = details.get("duration") or 0.0
             frames: List[dict] = []
-
             for t in planned_timestamps:
                 t = max(0.5, min(t, max(duration - 1, 1.0)))
 
-                # youtube-nocookie.com usually shows fewer / no pre-roll ads
-                # for embeds, and removes tracking cookies for cleaner sessions.
-                embed_url = (
-                    f"https://www.youtube-nocookie.com/embed/{video_id}"
-                    f"?start={int(t)}&autoplay=1&mute=1&controls=1&rel=0&modestbranding=1"
-                )
+                # Recover if a previous seek put the player in an error
+                # state ("Video unavailable"). The error overlay has class
+                # "ytp-error" — when present, we re-navigate to the watch
+                # page to reset the player.
                 try:
-                    page.goto(embed_url, wait_until="domcontentloaded", timeout=15_000)
-                except Exception:
-                    continue
-
-                # Wait for ads to end (if any). Two signals:
-                #   1. #movie_player has class 'ad-showing' while ad is playing
-                #   2. .ytp-ad-skip-button is clickable when skip is allowed
-                # Try to skip, then poll until the ad-showing class is gone.
-                try:
-                    deadline = time.time() + 25
-                    while time.time() < deadline:
-                        state = page.evaluate(
+                    in_error = page.evaluate(
+                        """() => !!document.querySelector('.ytp-error, ytd-player-error-message-renderer')"""
+                    )
+                    if in_error:
+                        page.goto(f"https://www.youtube.com/watch?v={video_id}",
+                                  wait_until="domcontentloaded", timeout=15_000)
+                        page.evaluate(_hide_overlay_js())
+                        page.evaluate(
                             """() => {
-                                const player = document.getElementById('movie_player');
-                                const isAd = player && player.classList.contains('ad-showing');
-                                // Try to click any skip-ad button we can find
-                                const skip = document.querySelector(
-                                  '.ytp-skip-ad-button, .ytp-ad-skip-button, .ytp-ad-skip-button-modern'
-                                );
-                                if (skip) try { skip.click(); } catch (e) {}
-                                return { isAd: !!isAd };
+                                const v = document.querySelector('video');
+                                if (v) { v.muted = true; v.volume = 0; v.play().catch(()=>{}); }
+                                const p = document.getElementById('movie_player');
+                                if (p && p.playVideo) p.playVideo();
                             }"""
                         )
-                        if not state.get("isAd"):
-                            break
-                        page.wait_for_timeout(800)
+                        page.wait_for_function(
+                            "() => { const v = document.querySelector('video'); return v && v.readyState >= 3; }",
+                            timeout=10_000,
+                        )
                 except Exception:
                     pass
 
-                # Wait for the actual video to be playing near t.
-                try:
-                    page.wait_for_function(
-                        f"""() => {{
-                            const v = document.querySelector('video');
-                            const player = document.getElementById('movie_player');
-                            const isAd = player && player.classList.contains('ad-showing');
-                            return v && !isAd && v.readyState >= 3 && v.currentTime >= {t * 0.5};
-                        }}""",
-                        timeout=10_000,
-                    )
-                except Exception:
-                    pass
+                # Seek via YouTube player API; await `seeked` AND `canplay`
+                # events so the new frame is actually rendered.
+                actual_t = page.evaluate(
+                    f"""() => new Promise((resolve) => {{
+                        const v = document.querySelector('video');
+                        if (!v) return resolve(null);
+                        let seeked = false, canplay = false;
+                        const tryFinish = () => {{
+                            if (seeked && canplay) {{
+                                v.removeEventListener('seeked', onSeeked);
+                                v.removeEventListener('canplay', onCanplay);
+                                resolve(v.currentTime);
+                            }}
+                        }};
+                        const onSeeked  = () => {{ seeked = true; tryFinish(); }};
+                        const onCanplay = () => {{ canplay = true; tryFinish(); }};
+                        v.addEventListener('seeked',  onSeeked,  {{ once: true }});
+                        v.addEventListener('canplay', onCanplay, {{ once: true }});
 
-                # Pause and grab the actual currentTime.
-                actual_t = page.evaluate("document.querySelector('video')?.currentTime")
-                page.evaluate("document.querySelector('video')?.pause()")
-                # Hide embed player chrome (controls=0 already removes most
-                # of it, but spinners and overlays can still appear).
-                page.evaluate(
-                    """() => {
-                        const sels = ['.ytp-chrome-bottom', '.ytp-spinner',
-                                      '.ytp-pause-overlay', '.ytp-watermark',
-                                      '.ytp-gradient-bottom', '.ytp-gradient-top'];
-                        for (const s of sels) {
-                            document.querySelectorAll(s).forEach(e => e.style.display='none');
-                        }
-                    }"""
+                        const player = document.getElementById('movie_player');
+                        if (player && player.seekTo) {{
+                            player.seekTo({t}, true);
+                        }} else {{
+                            v.currentTime = {t};
+                        }}
+                        setTimeout(() => {{
+                            v.removeEventListener('seeked', onSeeked);
+                            v.removeEventListener('canplay', onCanplay);
+                            resolve(v.currentTime);
+                        }}, 4000);
+                    }})"""
                 )
-                page.wait_for_timeout(200)
+                # Pause AFTER the seek completed.
+                page.evaluate("document.querySelector('video')?.pause()")
+                page.wait_for_timeout(300)
+                page.evaluate(_hide_overlay_js())
 
                 path = screenshots_dir / f"t{int(round(t))}.jpg"
                 try:
