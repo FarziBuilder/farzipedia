@@ -365,7 +365,11 @@ def capture(video_id: str,
 
             duration = details.get("duration") or 0.0
             frames: List[dict] = []
+            session_killed = False
             for i, t in enumerate(planned_timestamps):
+                if session_killed:
+                    log(f"Skipping frame {i+1}/{len(planned_timestamps)} — session already killed")
+                    continue
                 t = max(0.5, min(t, max(duration - 1, 1.0)))
                 log(f"--- Frame {i+1}/{len(planned_timestamps)} target t={t} ---")
 
@@ -434,18 +438,25 @@ def capture(video_id: str,
                             }}
                             return false;
                         }}""",
-                        timeout=20_000,
+                        timeout=12_000,
                     )
                     log(f"Seek COMPLETE: not-seeking + readyState>=3 + buffer covers {t}")
                 except Exception as e:
-                    # Log the partial state — sometimes it's "almost there"
-                    state = page.evaluate(_VIDEO_STATE_JS)
-                    log(f"Seek wait TIMED OUT after 20s — state: "
+                    # Catch ALL exceptions including session-closed — log
+                    # whatever state we can get, and skip the frame instead
+                    # of crashing the whole capture.
+                    try:
+                        state = page.evaluate(_VIDEO_STATE_JS) or {}
+                    except Exception:
+                        state = {"err": "page closed"}
+                    log(f"Seek wait TIMED OUT after 12s — state: "
                         f"seeking={state.get('seeking')} readyState={state.get('readyState')} "
                         f"currentTime={state.get('currentTime')} bufferedRanges={state.get('bufferedRanges')} "
                         f"firstBuffered={state.get('firstBuffered')}")
-                    # Even if buffer-include check failed, proceed — seeking might
-                    # have finished and we have at least HAVE_CURRENT_DATA.
+                    # If page is closed, abort the loop cleanly.
+                    if state.get("err") == "page closed":
+                        log("Page closed — aborting capture loop")
+                        break
 
                 # Brief settle for the GPU to paint the newly-decoded frame.
                 page.wait_for_timeout(500)

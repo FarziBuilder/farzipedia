@@ -299,10 +299,11 @@ def debug_download(url: str):
         # the browser session, then re-pick if our placeholder was off.
         # For the debug endpoint we just use a coarse 0–600s sweep.
         # Use widely-spread timestamps — for most videos these will be
-        # at very different moments (intro / mid / late), so if frames
-        # actually contain different content we'll see clearly distinct
-        # screenshots. SHA hashes below also confirm at byte level.
-        placeholder_ts = [5.0, 120.0, 480.0]
+        # at very different moments (intro / late), so if frames actually
+        # contain different content we'll see clearly distinct screenshots.
+        # SHA hashes below also confirm at byte level. Two frames here
+        # is a deliberate trim to fit Browserless free-tier 30s session.
+        placeholder_ts = [5.0, 120.0]
         out_html.append("<h2>① Open remote browser + capture</h2>")
         t0 = _time.time()
         result = capture(video_id, planned_timestamps=placeholder_ts,
