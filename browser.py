@@ -43,15 +43,37 @@ def _parse_xml_captions(xml: str) -> List[dict]:
 
 
 def _hide_overlay_js() -> str:
-    """Hide the YouTube player chrome so screenshots are clean."""
+    """Hide the YouTube player chrome so screenshots are clean. Also
+    forces the video element visible / on-screen / un-covered, which is
+    needed for `locator.screenshot` to not time out on 'not visible'."""
     return """
-    const sels = [
+    // Dismiss EU consent banner if present
+    const consentSelectors = [
+      'tp-yt-paper-button[aria-label*="Accept"]',
+      'tp-yt-paper-button[aria-label*="Reject"]',
+      'button[aria-label*="Accept all"]',
+      'button[aria-label*="Reject all"]',
+    ];
+    for (const sel of consentSelectors) {
+      const btn = document.querySelector(sel);
+      if (btn) try { btn.click(); } catch (e) {}
+    }
+    // Hide player chrome
+    const hideSel = [
       '.ytp-chrome-bottom', '.ytp-chrome-top', '.ytp-gradient-bottom',
       '.ytp-gradient-top', '.ytp-cc-window-container', '.ytp-pause-overlay',
       '.ytp-watermark', '.ytp-popup', '.ytp-spinner', '.ytp-watch-later-icon',
+      'ytd-popup-container', 'tp-yt-paper-dialog',
     ];
-    for (const s of sels) {
+    for (const s of hideSel) {
       document.querySelectorAll(s).forEach(e => e.style.display = 'none');
+    }
+    // Force the video into view
+    const v = document.querySelector('video');
+    if (v) {
+      v.style.visibility = 'visible';
+      v.style.opacity = '1';
+      v.scrollIntoView({block: 'center', inline: 'center'});
     }
     """
 
@@ -141,9 +163,18 @@ def capture(video_id: str,
                     snippets = _parse_xml_captions(resp.text())
 
             # ----- Frame captures -----
-            # Pause the video and hide overlays, then seek + screenshot per timestamp.
-            page.evaluate("document.querySelector('video').pause()")
+            # Make sure the player is ready before doing anything.
+            try:
+                page.wait_for_function(
+                    "() => { const v = document.querySelector('video'); return v && v.readyState >= 2; }",
+                    timeout=20_000,
+                )
+            except Exception:
+                pass
+
+            # First pass at hiding overlays + dismissing consent before seeking.
             page.evaluate(_hide_overlay_js())
+            page.evaluate("document.querySelector('video')?.pause()")
 
             duration = details.get("duration") or 0.0
             frames: List[dict] = []
@@ -152,27 +183,48 @@ def capture(video_id: str,
                 page.evaluate(
                     f"""() => {{
                         const v = document.querySelector('video');
+                        if (!v) return;
                         v.pause();
                         v.currentTime = {t};
                     }}"""
                 )
-                # wait for the seek to render a fresh frame
+                # Wait for the seek to render a fresh frame.
                 try:
                     page.wait_for_function(
-                        f"() => Math.abs(document.querySelector('video').currentTime - {t}) < 0.5",
+                        f"() => Math.abs((document.querySelector('video')?.currentTime ?? 0) - {t}) < 0.5",
                         timeout=8_000,
                     )
                 except Exception:
                     pass
-                page.wait_for_timeout(300)
-                # re-hide overlays in case YouTube re-renders them
+                page.wait_for_timeout(400)
+                # Re-hide overlays + scroll into view in case YouTube re-rendered.
                 page.evaluate(_hide_overlay_js())
 
                 path = screenshots_dir / f"t{int(round(t))}.jpg"
-                page.locator("video").first.screenshot(
-                    path=str(path), type="jpeg", quality=80
-                )
-                frames.append({"timestamp": float(t), "path": path})
+                # Use page.screenshot with a clip rectangle around the video,
+                # which works even when the video element is partially-covered
+                # (locator.screenshot insists on full visibility and times out).
+                bbox = page.locator("video").first.bounding_box(timeout=5_000)
+                try:
+                    if bbox and bbox.get("width", 0) > 0 and bbox.get("height", 0) > 0:
+                        page.screenshot(
+                            path=str(path),
+                            clip={
+                                "x": bbox["x"],
+                                "y": bbox["y"],
+                                "width": bbox["width"],
+                                "height": bbox["height"],
+                            },
+                            type="jpeg",
+                            quality=80,
+                        )
+                    else:
+                        # Fallback — full viewport screenshot.
+                        page.screenshot(path=str(path), type="jpeg", quality=80)
+                    frames.append({"timestamp": float(t), "path": path})
+                except Exception:
+                    # Skip this frame rather than killing the whole capture.
+                    continue
 
             return {"meta": details, "snippets": snippets, "frames": frames}
         finally:
