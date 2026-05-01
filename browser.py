@@ -412,20 +412,43 @@ def capture(video_id: str,
                     }}"""
                 )
                 log(f"seekTo({t}) called")
+                # Wait for the seek to FULLY complete:
+                #   1. seeking === false (player has finished the seek operation)
+                #   2. readyState >= 3 (HAVE_FUTURE_DATA — frame data is decoded)
+                #   3. buffered range CONTAINS our target time (data fetched)
+                # YouTube's MSE streaming can take 10-20s to fetch a segment far
+                # ahead of the previous position, so we use a 20s timeout.
                 try:
                     page.wait_for_function(
                         f"""() => {{
                             const v = document.querySelector('video');
-                            return v && Math.abs(v.currentTime - {t}) < 1.5 && v.readyState >= 3;
+                            if (!v) return false;
+                            if (v.seeking) return false;
+                            if (v.readyState < 3) return false;
+                            if (Math.abs(v.currentTime - {t}) > 1.5) return false;
+                            for (let i = 0; i < v.buffered.length; i++) {{
+                                const s = v.buffered.start(i), e = v.buffered.end(i);
+                                if (s <= v.currentTime + 0.1 && e >= v.currentTime + 0.5) {{
+                                    return true;
+                                }}
+                            }}
+                            return false;
                         }}""",
-                        timeout=5_000,
+                        timeout=20_000,
                     )
-                    log(f"currentTime landed near {t}")
+                    log(f"Seek COMPLETE: not-seeking + readyState>=3 + buffer covers {t}")
                 except Exception as e:
-                    log(f"Seek-landing wait TIMED OUT: {e}")
+                    # Log the partial state — sometimes it's "almost there"
+                    state = page.evaluate(_VIDEO_STATE_JS)
+                    log(f"Seek wait TIMED OUT after 20s — state: "
+                        f"seeking={state.get('seeking')} readyState={state.get('readyState')} "
+                        f"currentTime={state.get('currentTime')} bufferedRanges={state.get('bufferedRanges')} "
+                        f"firstBuffered={state.get('firstBuffered')}")
+                    # Even if buffer-include check failed, proceed — seeking might
+                    # have finished and we have at least HAVE_CURRENT_DATA.
 
-                # Let video play 1.2s past seek so frames decode
-                page.wait_for_timeout(1_200)
+                # Brief settle for the GPU to paint the newly-decoded frame.
+                page.wait_for_timeout(500)
                 page.evaluate(_hide_overlay_js())
 
                 state_at_capture = page.evaluate(_VIDEO_STATE_JS)
