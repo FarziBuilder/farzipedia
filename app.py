@@ -295,20 +295,23 @@ def debug_download(url: str):
         job_id = uuid.uuid4().hex[:8]
         shots_dir = JOBS_ROOT / f"debug_{job_id}" / "screenshots"
 
-        # Pick 6 evenly-spaced timestamps; we'll discover duration from
-        # the browser session, then re-pick if our placeholder was off.
-        # For the debug endpoint we just use a coarse 0–600s sweep.
-        # Stay within the first ~45s of the video — both timestamps fall
-        # inside YouTube's initial buffer ([0, ~43s] for most videos), so
-        # seeks complete instantly without waiting for CDN segment fetch.
-        # Two frames is enough to verify "different timestamps produce
-        # different SHA hashes". Designed to fit Browserless's 30s
-        # free-tier session limit.
-        placeholder_ts = [8.0, 38.0]
+        # Probe the FULL video: 8 timestamps spread from intro to near-end.
+        # Use planner_factory so we discover duration in-session and pick
+        # timestamps relative to it (no fixed values that miss short videos).
         out_html.append("<h2>① Open remote browser + capture</h2>")
         t0 = _time.time()
-        result = capture(video_id, planned_timestamps=placeholder_ts,
-                         screenshots_dir=shots_dir, debug_landing=True)
+
+        def debug_planner(meta_dict, snippets_list):
+            dur = float(meta_dict.get("duration") or 0.0) or 600.0
+            # 5%, 15%, 30%, 45%, 60%, 75%, 88%, 95% — covers full video,
+            # so we can see exactly which positions get stale frames.
+            fractions = [0.05, 0.15, 0.30, 0.45, 0.60, 0.75, 0.88, 0.95]
+            return [round(dur * f, 1) for f in fractions]
+
+        result = capture(video_id, planned_timestamps=[],
+                         screenshots_dir=shots_dir, debug_landing=True,
+                         planner_factory=debug_planner,
+                         keep_duplicates=True)
         t1 = _time.time()
         meta = result["meta"]
         snippets = result["snippets"]

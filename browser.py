@@ -150,7 +150,8 @@ def capture(video_id: str,
             screenshots_dir: Path,
             languages: Optional[List[str]] = None,
             debug_landing: bool = False,
-            planner_factory=None) -> dict:
+            planner_factory=None,
+            keep_duplicates: bool = False) -> dict:
     """Capture metadata + transcript + frames from a YouTube video.
 
     Returns:
@@ -529,28 +530,29 @@ def capture(video_id: str,
                     size = 0
                     log(f"Hashing FAILED: {e}")
 
-                # Skip duplicate frames — same SHA as a previous capture
+                # Detect duplicate frames — same SHA as a previous capture
                 # means the seek didn't actually load new video data and
                 # the canvas captured the stale decoded buffer.
-                if sha != "?" and sha in seen_hashes:
+                is_duplicate = sha != "?" and sha in seen_hashes
+                if is_duplicate:
                     duplicate_streak += 1
                     log(f"DUPLICATE frame at t={t} (sha={sha} matches earlier capture). "
-                        f"Streak={duplicate_streak}. Skipping.")
-                    try:
-                        path.unlink()  # don't litter disk
-                    except OSError:
-                        pass
-                    # If we've hit 3 dupes in a row, the player is stuck —
-                    # subsequent seeks will likely also fail. Abort the loop.
-                    if duplicate_streak >= 3:
-                        log("Three consecutive duplicate frames — player is stuck. "
-                            "Aborting remaining captures.")
-                        break
-                    continue
-
-                duplicate_streak = 0
-                if sha != "?":
-                    seen_hashes.add(sha)
+                        f"Streak={duplicate_streak}. "
+                        f"{'KEEPING (debug)' if keep_duplicates else 'Skipping.'}")
+                    if not keep_duplicates:
+                        try:
+                            path.unlink()
+                        except OSError:
+                            pass
+                        if duplicate_streak >= 3:
+                            log("Three consecutive duplicate frames — player is stuck. "
+                                "Aborting remaining captures.")
+                            break
+                        continue
+                else:
+                    duplicate_streak = 0
+                    if sha != "?":
+                        seen_hashes.add(sha)
                 log(f"Saved {path.name}: sha={sha} size={size}B method={method}")
 
                 frames.append({
