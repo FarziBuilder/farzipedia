@@ -301,68 +301,57 @@ def capture(video_id: str,
                 if resp.ok:
                     snippets = _parse_xml_captions(resp.text())
 
-            # ----- Frame captures -----
-            # Strategy: navigate fresh to youtube.com/watch?v=ID&t=Ns for each
-            # planned timestamp. In-session multi-seek triggered YouTube's
-            # anti-bot defenses (player went to "Video unavailable" after the
-            # first seek). Per-timestamp navigation looks like normal users
-            # clicking timestamped links and is reliably accepted.
+            # ----- Frame captures via the EMBED player -----
+            # Strategy: for each planned timestamp, navigate to
+            #   https://www.youtube.com/embed/VIDEO_ID?start=N&autoplay=1&mute=1
+            # The embed player loads in ~2-3s (vs 5-7s for the full watch
+            # page), has no consent dialog, no header, no comments — just
+            # a player. ?start=N tells YouTube to begin playback at that
+            # timestamp, so no in-session seeking (which we found triggers
+            # anti-bot after the first seek).
             duration = details.get("duration") or 0.0
             frames: List[dict] = []
 
             for t in planned_timestamps:
                 t = max(0.5, min(t, max(duration - 1, 1.0)))
 
-                target_url = f"https://www.youtube.com/watch?v={video_id}&t={int(t)}s"
+                embed_url = (
+                    f"https://www.youtube.com/embed/{video_id}"
+                    f"?start={int(t)}&autoplay=1&mute=1&controls=0&rel=0&modestbranding=1"
+                )
                 try:
-                    page.goto(target_url, wait_until="domcontentloaded", timeout=20_000)
+                    page.goto(embed_url, wait_until="domcontentloaded", timeout=15_000)
                 except Exception:
                     continue
 
-                # Dismiss any consent dialog that re-appeared.
-                page.evaluate(_hide_overlay_js())
-
-                # Wait for the video element to mount.
+                # Wait for the video to actually be playing near t.
                 try:
-                    page.wait_for_function(
-                        "() => document.querySelector('video')?.readyState >= 2",
-                        timeout=10_000,
-                    )
-                except Exception:
-                    continue
-
-                # Mute + play (headless autoplay needs mute) so the actual
-                # frame at this timestamp gets decoded.
-                try:
-                    page.evaluate(
-                        """() => {
-                            const v = document.querySelector('video');
-                            if (v) { v.muted = true; v.volume = 0; }
-                            const player = document.getElementById('movie_player');
-                            if (player) {
-                                try { player.mute && player.mute(); } catch (e) {}
-                                try { player.setVolume && player.setVolume(0); } catch (e) {}
-                                try { player.playVideo && player.playVideo(); } catch (e) {}
-                            }
-                            try { v && v.play().catch(() => {}); } catch (e) {}
-                        }"""
-                    )
-                    # Wait for the video to actually be playing near t.
                     page.wait_for_function(
                         f"""() => {{
                             const v = document.querySelector('video');
-                            return v && v.readyState >= 3 && v.currentTime >= {t * 0.7};
+                            return v && v.readyState >= 3 && v.currentTime >= {t * 0.5};
                         }}""",
-                        timeout=8_000,
+                        timeout=10_000,
                     )
                 except Exception:
                     pass
 
-                # Pause and grab the actual currentTime, hide overlays.
+                # Pause and grab the actual currentTime.
                 actual_t = page.evaluate("document.querySelector('video')?.currentTime")
                 page.evaluate("document.querySelector('video')?.pause()")
-                page.evaluate(_hide_overlay_js())
-                page.wait_for_timeout(300)
+                # Hide embed player chrome (controls=0 already removes most
+                # of it, but spinners and overlays can still appear).
+                page.evaluate(
+                    """() => {
+                        const sels = ['.ytp-chrome-bottom', '.ytp-spinner',
+                                      '.ytp-pause-overlay', '.ytp-watermark',
+                                      '.ytp-gradient-bottom', '.ytp-gradient-top'];
+                        for (const s of sels) {
+                            document.querySelectorAll(s).forEach(e => e.style.display='none');
+                        }
+                    }"""
+                )
+                page.wait_for_timeout(200)
 
                 path = screenshots_dir / f"t{int(round(t))}.jpg"
                 try:
