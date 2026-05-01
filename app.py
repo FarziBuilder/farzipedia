@@ -298,10 +298,11 @@ def debug_download(url: str):
         # Pick 6 evenly-spaced timestamps; we'll discover duration from
         # the browser session, then re-pick if our placeholder was off.
         # For the debug endpoint we just use a coarse 0–600s sweep.
-        # Keep this short so the whole capture finishes within Browserless
-        # free-tier session timeout (~30s). Three timestamps is enough to
-        # verify seek-and-screenshot is working end-to-end.
-        placeholder_ts = [15.0, 90.0, 240.0]
+        # Use widely-spread timestamps — for most videos these will be
+        # at very different moments (intro / mid / late), so if frames
+        # actually contain different content we'll see clearly distinct
+        # screenshots. SHA hashes below also confirm at byte level.
+        placeholder_ts = [5.0, 120.0, 480.0]
         out_html.append("<h2>① Open remote browser + capture</h2>")
         t0 = _time.time()
         result = capture(video_id, planned_timestamps=placeholder_ts,
@@ -330,18 +331,47 @@ def debug_download(url: str):
             )
 
         out_html.append("<h2>② Frames captured</h2>")
+        # Hash each frame's bytes so we can tell if "looks the same" is
+        # actually the same file or just visually similar content.
+        import hashlib as _hashlib
+        hashes_seen = {}
         for f in frames:
             t = f["timestamp"]
             actual = f.get("actual_t")
             name = f["path"].name
+            try:
+                data = f["path"].read_bytes()
+                sha = _hashlib.sha256(data).hexdigest()[:16]
+                size = len(data)
+            except Exception:
+                sha = "?"
+                size = 0
+
             actual_str = f" (actual={actual:.2f}s)" if actual is not None else " (actual=?)"
             mismatch = ""
             if actual is not None and abs(actual - t) > 1.0:
                 mismatch = " ⚠️ <span style='color:#ff8c8c'>seek didn't land</span>"
+
+            dup = ""
+            if sha in hashes_seen and sha != "?":
+                dup = f" ⚠️ <span style='color:#ff8c8c'>identical bytes to t={hashes_seen[sha]:.1f}s</span>"
+            else:
+                hashes_seen[sha] = t
+
             out_html.append(
-                f"<p><strong>t={t:.1f}s{actual_str}{mismatch}:</strong></p>"
+                f"<p><strong>t={t:.1f}s{actual_str}{mismatch}</strong> "
+                f"<code style='color:#888;font-size:11px'>sha={sha} · {size:,}B</code>{dup}:</p>"
                 f"<img src='/jobs/debug_{job_id}/screenshots/{name}' alt='frame at {t}s'>"
             )
+
+        # Summary line
+        unique_hashes = len({h for h in hashes_seen.keys() if h != "?"})
+        out_html.append(
+            f"<p><strong>Diagnostic:</strong> {unique_hashes}/{len(frames)} unique frame hashes. "
+            + ("✅ frames are byte-distinct" if unique_hashes == len(frames)
+               else "⚠️ duplicate frames — Chromium isn't decoding new frames after seek")
+            + "</p>"
+        )
 
         out_html.append("<h2>③ First 5 transcript snippets</h2>")
         out_html.append("<pre>" + "\n".join(
