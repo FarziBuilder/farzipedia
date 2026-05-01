@@ -314,21 +314,38 @@ def capture(video_id: str,
             # First pass at hiding overlays.
             page.evaluate(_hide_overlay_js())
 
-            # Briefly start playback so the video actually begins buffering.
-            # Setting currentTime alone does NOT load YouTube's MSE-streamed
-            # segments — the video element keeps showing the poster frame
-            # until playback has triggered segment downloads. So we kick
-            # play() once, let it buffer ~1.5s, then start seeking.
+            # Headless Chromium blocks autoplay for *unmuted* videos — we
+            # have to mute first or play() silently rejects and the stream
+            # never starts. (That's why all our screenshots were the
+            # poster image.) Mute the player, then play, then wait for
+            # currentTime to actually advance — that's our signal that
+            # MSE segments are loading and frames are being decoded.
             try:
                 page.evaluate(
                     """() => {
+                        const v = document.querySelector('video');
+                        if (v) { v.muted = true; v.volume = 0; }
                         const player = document.getElementById('movie_player');
-                        if (player && player.playVideo) player.playVideo();
-                        else document.querySelector('video')?.play();
+                        if (player) {
+                            try { player.mute && player.mute(); } catch (e) {}
+                            try { player.setVolume && player.setVolume(0); } catch (e) {}
+                            try { player.playVideo && player.playVideo(); } catch (e) {}
+                        }
+                        try { v && v.play().catch(() => {}); } catch (e) {}
                     }"""
                 )
-                page.wait_for_timeout(1500)
+                # Wait for actual playback — currentTime advancing AND
+                # readyState HAVE_FUTURE_DATA (3) or HAVE_ENOUGH_DATA (4).
+                page.wait_for_function(
+                    """() => {
+                        const v = document.querySelector('video');
+                        return v && !v.paused && v.currentTime > 0.5 && v.readyState >= 3;
+                    }""",
+                    timeout=20_000,
+                )
             except Exception:
+                # If playback truly never starts, screenshots will still
+                # be the poster — but let's continue and see how far we get.
                 pass
 
             duration = details.get("duration") or 0.0
@@ -336,32 +353,46 @@ def capture(video_id: str,
             for t in planned_timestamps:
                 t = max(0.5, min(t, max(duration - 1, 1.0)))
 
-                # Use YouTube's player API to seek (it handles MSE segment
-                # loading correctly). Fall back to currentTime if that's not
-                # available. Then await the `seeked` event — this is what
-                # tells us the new frame is actually loaded, as opposed to
-                # currentTime which updates immediately.
-                page.evaluate(
+                # Seek via YouTube's player API (MSE-aware), then wait for
+                # both `seeked` AND `canplay` events — `seeked` fires when
+                # currentTime jumped, `canplay` fires when enough data is
+                # decoded for that timestamp to render. We need both for
+                # the screenshot to capture the actual new frame.
+                actual_t = page.evaluate(
                     f"""() => new Promise((resolve) => {{
                         const v = document.querySelector('video');
-                        if (!v) return resolve();
-                        const finish = () => {{
-                            v.removeEventListener('seeked', finish);
-                            v.pause();
-                            resolve();
+                        if (!v) return resolve(null);
+                        let seeked = false, canplay = false;
+                        const tryFinish = () => {{
+                            if (seeked && canplay) {{
+                                v.removeEventListener('seeked', onSeeked);
+                                v.removeEventListener('canplay', onCanplay);
+                                resolve(v.currentTime);
+                            }}
                         }};
-                        v.addEventListener('seeked', finish, {{ once: true }});
+                        const onSeeked  = () => {{ seeked = true; tryFinish(); }};
+                        const onCanplay = () => {{ canplay = true; tryFinish(); }};
+                        v.addEventListener('seeked',  onSeeked,  {{ once: true }});
+                        v.addEventListener('canplay', onCanplay, {{ once: true }});
+
                         const player = document.getElementById('movie_player');
                         if (player && player.seekTo) {{
                             player.seekTo({t}, true);
                         }} else {{
                             v.currentTime = {t};
                         }}
-                        // Safety timeout: 5s
-                        setTimeout(finish, 5000);
+                        // Safety timeout: 6s — fall back to whatever frame is current
+                        setTimeout(() => {{
+                            v.removeEventListener('seeked', onSeeked);
+                            v.removeEventListener('canplay', onCanplay);
+                            resolve(v.currentTime);
+                        }}, 6000);
                     }})"""
                 )
-                page.wait_for_timeout(250)
+                # Pause AFTER the seek completed, otherwise the frame
+                # advances during the screenshot.
+                page.evaluate("document.querySelector('video')?.pause()")
+                page.wait_for_timeout(400)
                 # Re-hide overlays + scroll into view in case YouTube re-rendered.
                 page.evaluate(_hide_overlay_js())
 
@@ -386,7 +417,11 @@ def capture(video_id: str,
                     else:
                         # Fallback — full viewport screenshot.
                         page.screenshot(path=str(path), type="jpeg", quality=80)
-                    frames.append({"timestamp": float(t), "path": path})
+                    frames.append({
+                        "timestamp": float(t),
+                        "actual_t": float(actual_t) if actual_t is not None else None,
+                        "path": path,
+                    })
                 except Exception:
                     # Skip this frame rather than killing the whole capture.
                     continue

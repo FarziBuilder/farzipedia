@@ -329,9 +329,14 @@ def debug_download(url: str):
         out_html.append("<h2>② Frames captured</h2>")
         for f in frames:
             t = f["timestamp"]
+            actual = f.get("actual_t")
             name = f["path"].name
+            actual_str = f" (actual={actual:.2f}s)" if actual is not None else " (actual=?)"
+            mismatch = ""
+            if actual is not None and abs(actual - t) > 1.0:
+                mismatch = " ⚠️ <span style='color:#ff8c8c'>seek didn't land</span>"
             out_html.append(
-                f"<p><strong>t={t:.1f}s:</strong></p>"
+                f"<p><strong>t={t:.1f}s{actual_str}{mismatch}:</strong></p>"
                 f"<img src='/jobs/debug_{job_id}/screenshots/{name}' alt='frame at {t}s'>"
             )
 
