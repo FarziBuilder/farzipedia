@@ -315,21 +315,50 @@ def capture(video_id: str,
             for t in planned_timestamps:
                 t = max(0.5, min(t, max(duration - 1, 1.0)))
 
+                # youtube-nocookie.com usually shows fewer / no pre-roll ads
+                # for embeds, and removes tracking cookies for cleaner sessions.
                 embed_url = (
-                    f"https://www.youtube.com/embed/{video_id}"
-                    f"?start={int(t)}&autoplay=1&mute=1&controls=0&rel=0&modestbranding=1"
+                    f"https://www.youtube-nocookie.com/embed/{video_id}"
+                    f"?start={int(t)}&autoplay=1&mute=1&controls=1&rel=0&modestbranding=1"
                 )
                 try:
                     page.goto(embed_url, wait_until="domcontentloaded", timeout=15_000)
                 except Exception:
                     continue
 
-                # Wait for the video to actually be playing near t.
+                # Wait for ads to end (if any). Two signals:
+                #   1. #movie_player has class 'ad-showing' while ad is playing
+                #   2. .ytp-ad-skip-button is clickable when skip is allowed
+                # Try to skip, then poll until the ad-showing class is gone.
+                try:
+                    deadline = time.time() + 25
+                    while time.time() < deadline:
+                        state = page.evaluate(
+                            """() => {
+                                const player = document.getElementById('movie_player');
+                                const isAd = player && player.classList.contains('ad-showing');
+                                // Try to click any skip-ad button we can find
+                                const skip = document.querySelector(
+                                  '.ytp-skip-ad-button, .ytp-ad-skip-button, .ytp-ad-skip-button-modern'
+                                );
+                                if (skip) try { skip.click(); } catch (e) {}
+                                return { isAd: !!isAd };
+                            }"""
+                        )
+                        if not state.get("isAd"):
+                            break
+                        page.wait_for_timeout(800)
+                except Exception:
+                    pass
+
+                # Wait for the actual video to be playing near t.
                 try:
                     page.wait_for_function(
                         f"""() => {{
                             const v = document.querySelector('video');
-                            return v && v.readyState >= 3 && v.currentTime >= {t * 0.5};
+                            const player = document.getElementById('movie_player');
+                            const isAd = player && player.classList.contains('ad-showing');
+                            return v && !isAd && v.readyState >= 3 && v.currentTime >= {t * 0.5};
                         }}""",
                         timeout=10_000,
                     )
