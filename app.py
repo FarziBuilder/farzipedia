@@ -301,17 +301,30 @@ def debug_download(url: str):
         placeholder_ts = [10.0, 60.0, 120.0, 180.0, 240.0, 300.0]
         out_html.append("<h2>① Open remote browser + capture</h2>")
         t0 = _time.time()
-        result = capture(video_id, planned_timestamps=placeholder_ts, screenshots_dir=shots_dir)
+        result = capture(video_id, planned_timestamps=placeholder_ts,
+                         screenshots_dir=shots_dir, debug_landing=True)
         t1 = _time.time()
         meta = result["meta"]
         snippets = result["snippets"]
         frames = result["frames"]
+        landing = result.get("landing") or {}
         out_html.append(
             f"<p class='ok'>✓ session done in {t1-t0:.1f}s · "
             f"<code>{meta.get('title','(unknown)')}</code> · "
             f"{int(meta.get('duration') or 0)}s · "
             f"{len(snippets)} caption snippets · {len(frames)} frames</p>"
         )
+
+        # Diagnostic: show the page Browserless actually landed on after
+        # navigation. If this isn't the real watch page, we know YouTube
+        # is detecting / redirecting the headless session.
+        if landing.get("screenshot"):
+            out_html.append("<h2>① bis. What Browserless actually landed on</h2>")
+            out_html.append(
+                f"<p><strong>URL:</strong> <code>{landing.get('url','')}</code><br>"
+                f"<strong>Title:</strong> <code>{landing.get('title','')}</code></p>"
+                f"<img src='/jobs/debug_{job_id}/screenshots/_landing.jpg' alt='landing page'>"
+            )
 
         out_html.append("<h2>② Frames captured</h2>")
         for f in frames:

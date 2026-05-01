@@ -81,7 +81,8 @@ def _hide_overlay_js() -> str:
 def capture(video_id: str,
             planned_timestamps: List[float],
             screenshots_dir: Path,
-            languages: Optional[List[str]] = None) -> dict:
+            languages: Optional[List[str]] = None,
+            debug_landing: bool = False) -> dict:
     """Open the YouTube watch page in a remote Chromium and pull out:
        - metadata (title, duration, uploader, thumbnail)
        - timestamped transcript (from ytInitialPlayerResponse caption tracks)
@@ -115,11 +116,41 @@ def capture(video_id: str,
             page.goto(f"https://www.youtube.com/watch?v={video_id}",
                       wait_until="domcontentloaded", timeout=60_000)
 
+            # If asked, snap a full-page screenshot RIGHT AFTER navigation
+            # so we can see exactly what page Browserless landed on (consent
+            # wall, sign-in page, real watch page, etc.). Captured before
+            # any wait_for_function timeout so it's reliable.
+            landing_info = {
+                "url": page.url,
+                "title": "",
+                "screenshot": None,
+            }
+            if debug_landing:
+                try:
+                    landing_path = screenshots_dir / "_landing.jpg"
+                    page.screenshot(
+                        path=str(landing_path), type="jpeg", quality=70,
+                        full_page=True,
+                    )
+                    landing_info["title"] = page.title()
+                    landing_info["screenshot"] = landing_path
+                except Exception:
+                    pass
+
             # Wait for the player JSON to be available + the video element to mount.
-            page.wait_for_function(
-                "() => window.ytInitialPlayerResponse && document.querySelector('video')",
-                timeout=30_000,
-            )
+            try:
+                page.wait_for_function(
+                    "() => window.ytInitialPlayerResponse && document.querySelector('video')",
+                    timeout=30_000,
+                )
+            except Exception as wait_err:
+                # If the watch page never rendered, surface the landing info
+                # in the error so the caller can show what page we got instead.
+                raise RuntimeError(
+                    f"Watch page didn't render. URL we ended up on: {page.url}. "
+                    f"Page title: {page.title()!r}. "
+                    f"Underlying: {type(wait_err).__name__}: {str(wait_err)[:200]}"
+                ) from wait_err
 
             # ----- Metadata -----
             details = page.evaluate(
@@ -226,7 +257,12 @@ def capture(video_id: str,
                     # Skip this frame rather than killing the whole capture.
                     continue
 
-            return {"meta": details, "snippets": snippets, "frames": frames}
+            return {
+                "meta": details,
+                "snippets": snippets,
+                "frames": frames,
+                "landing": landing_info,
+            }
         finally:
             try:
                 browser.close()
