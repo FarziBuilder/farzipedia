@@ -224,8 +224,23 @@ def capture(video_id: str,
             log("Got page", existing=bool(context.pages))
 
             log(f"Navigating to https://www.youtube.com/watch?v={video_id}")
-            page.goto(f"https://www.youtube.com/watch?v={video_id}",
-                      wait_until="domcontentloaded", timeout=60_000)
+            # wait_until="commit" returns the moment navigation begins,
+            # not when DOM is ready. We have a `wait_for_function` below
+            # waiting for the video element to mount, which is the actual
+            # signal we need. domcontentloaded was timing out at 60s
+            # for some videos because YouTube fires it very late on slow
+            # network conditions.
+            try:
+                page.goto(f"https://www.youtube.com/watch?v={video_id}",
+                          wait_until="commit", timeout=30_000)
+            except Exception as e:
+                log(f"page.goto WARN: {e}")
+                # If navigation didn't even commit, retry once.
+                try:
+                    page.goto(f"https://www.youtube.com/watch?v={video_id}",
+                              wait_until="commit", timeout=30_000)
+                except Exception:
+                    pass
             log(f"Navigation done, page.url={page.url!r}")
 
             landing_info = {"url": page.url, "title": "", "screenshot": None}
