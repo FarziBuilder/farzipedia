@@ -374,57 +374,43 @@ def capture(video_id: str,
                 except Exception:
                     pass
 
-                # Seek + wait for a new VIDEO FRAME to actually be painted.
-                # `requestVideoFrameCallback` is the only reliable signal that
-                # the GPU has rendered a fresh frame at the new currentTime —
-                # `seeked` and `canplay` only confirm time + buffer, not paint.
-                actual_t = page.evaluate(
-                    f"""() => new Promise((resolve) => {{
-                        const v = document.querySelector('video');
-                        if (!v) return resolve(null);
-
-                        let painted = false;
-                        const finishWith = (val) => {{
-                            if (!painted) {{ painted = true; resolve(val); }}
-                        }};
-
-                        // Trigger seek via YouTube player API.
+                # Seek but DO NOT pause — the headless GPU sometimes reverts
+                # to a stale decoded frame when a video is paused after seek.
+                # Letting the video play for ~1.2s past the seek forces the
+                # decoder to actually render fresh frames, which we then
+                # screenshot mid-playback.
+                page.evaluate(
+                    f"""() => {{
                         const player = document.getElementById('movie_player');
                         if (player && player.seekTo) {{
                             player.seekTo({t}, true);
+                            try {{ player.playVideo && player.playVideo(); }} catch (e) {{}}
                         }} else {{
-                            v.currentTime = {t};
+                            const v = document.querySelector('video');
+                            if (v) {{
+                                v.currentTime = {t};
+                                v.play().catch(() => {{}});
+                            }}
                         }}
-
-                        // Wait for a frame to be painted at or near the
-                        // target time. requestVideoFrameCallback fires once
-                        // per actually-painted frame.
-                        if (typeof v.requestVideoFrameCallback === 'function') {{
-                            const onFrame = (now, metadata) => {{
-                                const mt = metadata.mediaTime;
-                                if (Math.abs(mt - {t}) < 1.5) {{
-                                    finishWith(mt);
-                                }} else {{
-                                    v.requestVideoFrameCallback(onFrame);
-                                }}
-                            }};
-                            v.requestVideoFrameCallback(onFrame);
-                        }} else {{
-                            // Fallback: just wait for `seeked` event.
-                            v.addEventListener('seeked', () => finishWith(v.currentTime),
-                                               {{ once: true }});
-                        }}
-
-                        // Hard deadline so we don't hang forever.
-                        setTimeout(() => finishWith(v.currentTime), 5000);
-                    }})"""
+                    }}"""
                 )
-                # Brief settle, THEN pause — pausing too eagerly can revert
-                # to the previous decoded frame on some headless setups.
-                page.wait_for_timeout(150)
-                page.evaluate("document.querySelector('video')?.pause()")
-                page.wait_for_timeout(150)
+                # Wait for currentTime to land near the target.
+                try:
+                    page.wait_for_function(
+                        f"""() => {{
+                            const v = document.querySelector('video');
+                            return v && Math.abs(v.currentTime - {t}) < 1.5 && v.readyState >= 3;
+                        }}""",
+                        timeout=5_000,
+                    )
+                except Exception:
+                    pass
+                # Let the video PLAY for 1.2s past the seek so actual new
+                # frames get decoded and painted by the GPU.
+                page.wait_for_timeout(1_200)
                 page.evaluate(_hide_overlay_js())
+
+                actual_t = page.evaluate("document.querySelector('video')?.currentTime")
 
                 path = screenshots_dir / f"t{int(round(t))}.jpg"
                 try:
