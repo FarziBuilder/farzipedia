@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Callable, Optional
 
-from transcript import extract_video_id, fetch_snippets
+from transcript import extract_video_id, transcribe_audio
 from planner import plan_timestamps
 from analyzer import analyze
 import trivia as trivia_mod
@@ -181,12 +181,7 @@ def run(url: str, job_dir: Path,
         raise ValueError("Could not extract a YouTube video id from that URL.")
     canonical = _canonical_youtube_url(video_id)
 
-    step("Fetching transcript", 0.06)
-    snippets = fetch_snippets(video_id)
-    if not snippets:
-        raise RuntimeError("No transcript snippets returned (captions may be disabled).")
-
-    step("Reading video info", 0.10)
+    step("Reading video info", 0.06)
     meta = _yt_dlp_metadata(canonical)
     title = meta.get("title", "")
     uploader = meta.get("uploader") or meta.get("channel", "")
@@ -225,6 +220,25 @@ def run(url: str, job_dir: Path,
     uploader = dl_meta.get("uploader") or dl_meta.get("channel") or uploader
     duration = float(dl_meta.get("duration") or duration or _ffprobe_duration(video_path))
 
+    step("Extracting audio for transcription", 0.30)
+    audio_path = job_dir / "audio.mp3"
+    # 32 kbps mono mp3 — keeps even hour-long videos under Whisper's 25 MB limit.
+    subprocess.run(
+        ["ffmpeg", "-hide_banner", "-loglevel", "error",
+         "-i", str(video_path),
+         "-vn", "-acodec", "libmp3lame", "-b:a", "32k", "-ac", "1",
+         "-y", str(audio_path)],
+        check=True,
+    )
+
+    step("Transcribing with Whisper", 0.35)
+    snippets = transcribe_audio(audio_path)
+    if not snippets:
+        raise RuntimeError(
+            "Whisper returned an empty transcript. The audio may have been "
+            "silent, or the video had no spoken content."
+        )
+
     step("Planning capture moments", 0.45)
     max_frames = min(60, max(20, int(duration / 60 * 3)))
     timestamps = plan_timestamps(snippets, duration, max_total=max_frames)
@@ -259,6 +273,10 @@ def run(url: str, job_dir: Path,
 
     try:
         video_path.unlink()
+    except OSError:
+        pass
+    try:
+        audio_path.unlink()
     except OSError:
         pass
 

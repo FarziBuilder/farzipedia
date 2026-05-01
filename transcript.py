@@ -1,13 +1,19 @@
-"""Fetch a YouTube transcript as timestamped snippets.
+"""Generate timestamped transcripts via OpenAI Whisper.
 
-Supports an optional Webshare residential proxy (set
-WEBSHARE_PROXY_USERNAME / WEBSHARE_PROXY_PASSWORD) — required when running
-from a data-centre IP, where YouTube blocks unauthenticated transcript
-requests.
+Replaces the previous youtube-transcript-api flow because YouTube
+aggressively blocks transcript requests from data-centre IPs even
+through residential rotating proxies. Whisper transcribes the audio
+we've already downloaded, sidestepping the entire YouTube transcript
+endpoint.
+
+Public API:
+    extract_video_id(url) -> str | None
+    transcribe_audio(audio_path) -> List[{start, duration, text}]
 """
 
 import os
 import re
+from pathlib import Path
 from typing import List, Optional
 
 YOUTUBE_ID_PATTERNS = [
@@ -30,100 +36,45 @@ def extract_video_id(url: str) -> Optional[str]:
     return None
 
 
-def _normalize(fetched) -> List[dict]:
-    out = []
-    for s in fetched:
-        if isinstance(s, dict):
+def transcribe_audio(audio_path: Path, language: Optional[str] = None) -> List[dict]:
+    """Send an audio file to OpenAI Whisper and return timestamped segments
+    in the same shape we used before: [{start, duration, text}, ...].
+
+    Whisper API limits: 25 MB per file. The pipeline encodes audio at
+    32 kbps mono MP3 to keep most videos under that.
+    """
+    from openai import OpenAI
+
+    if not os.environ.get("OPENAI_API_KEY", "").strip():
+        raise RuntimeError(
+            "OPENAI_API_KEY is not set. Whisper-based transcription requires "
+            "an OpenAI API key — get one at https://platform.openai.com/api-keys "
+            "and set it as an env var on Render."
+        )
+
+    client = OpenAI()
+    with open(audio_path, "rb") as f:
+        kwargs = {
+            "model": "whisper-1",
+            "file": f,
+            "response_format": "verbose_json",
+            "timestamp_granularities": ["segment"],
+        }
+        if language:
+            kwargs["language"] = language
+        result = client.audio.transcriptions.create(**kwargs)
+
+    # `result.segments` is a list of objects with .start, .end, .text
+    segments = getattr(result, "segments", None) or []
+    out: List[dict] = []
+    for seg in segments:
+        start = float(getattr(seg, "start", 0.0))
+        end = float(getattr(seg, "end", start + 1.0))
+        text = (getattr(seg, "text", "") or "").strip()
+        if text:
             out.append({
-                "start": float(s.get("start", 0.0)),
-                "duration": float(s.get("duration", 0.0)),
-                "text": s.get("text", ""),
-            })
-        else:
-            out.append({
-                "start": float(getattr(s, "start", 0.0)),
-                "duration": float(getattr(s, "duration", 0.0)),
-                "text": getattr(s, "text", ""),
+                "start": start,
+                "duration": max(0.5, end - start),
+                "text": text,
             })
     return out
-
-
-def _build_proxy_config():
-    """Return a proxy_config object if env vars are set, else None.
-
-    Mirrors pipeline._proxy_args() so the transcript fetch and the
-    yt-dlp download go through the same proxy with consistent creds.
-    """
-    user = os.environ.get("WEBSHARE_PROXY_USERNAME", "").strip()
-    pwd = os.environ.get("WEBSHARE_PROXY_PASSWORD", "").strip()
-    host = os.environ.get("WEBSHARE_PROXY_HOST", "p.webshare.io").strip()
-    port = os.environ.get("WEBSHARE_PROXY_PORT", "80").strip()
-
-    if user and pwd:
-        # Use the username verbatim — different Webshare account types accept
-        # different formats. Append `-rotate` in the env var yourself if needed.
-        proxy_url = f"http://{user}:{pwd}@{host}:{port}"
-        try:
-            from youtube_transcript_api.proxies import GenericProxyConfig
-            return GenericProxyConfig(http_url=proxy_url, https_url=proxy_url)
-        except ImportError:
-            pass
-
-    # Generic proxy fallback (HTTP_PROXY / HTTPS_PROXY)
-    http_url = os.environ.get("HTTPS_PROXY") or os.environ.get("HTTP_PROXY")
-    if http_url:
-        try:
-            from youtube_transcript_api.proxies import GenericProxyConfig
-            return GenericProxyConfig(http_url=http_url, https_url=http_url)
-        except ImportError:
-            pass
-    return None
-
-
-def fetch_snippets(video_id: str, languages: Optional[List[str]] = None) -> List[dict]:
-    """Fetch with retry — YouTube drops occasional SSL handshakes through
-    residential proxies when an exit IP is on its blocklist. With
-    -rotate suffix on the Webshare username, each retry lands on a
-    different IP, so a few retries usually succeed.
-    """
-    import time
-    from youtube_transcript_api import YouTubeTranscriptApi
-
-    proxy_config = _build_proxy_config()
-    last_error: Optional[Exception] = None
-
-    # Try to import the specific exception classes — let us check by type
-    # rather than relying on error-message text matching.
-    try:
-        from youtube_transcript_api._errors import RequestBlocked, IpBlocked
-        BLOCK_ERRORS: tuple = (RequestBlocked, IpBlocked)
-    except ImportError:
-        BLOCK_ERRORS = ()
-
-    for attempt in range(6):
-        try:
-            if hasattr(YouTubeTranscriptApi, "fetch") or hasattr(YouTubeTranscriptApi(), "fetch"):
-                api = YouTubeTranscriptApi(proxy_config=proxy_config) if proxy_config else YouTubeTranscriptApi()
-                kwargs = {"languages": languages} if languages else {}
-                return _normalize(api.fetch(video_id, **kwargs))
-            kwargs = {"languages": languages} if languages else {}
-            return _normalize(YouTubeTranscriptApi.get_transcript(video_id, **kwargs))
-        except Exception as e:
-            msg = str(e).lower()
-            # YouTube IP-block errors: retry — rotation will give a fresh IP.
-            blocked = isinstance(e, BLOCK_ERRORS) or "is blocking your requests" in msg
-            # SSL / transport errors: also retry.
-            transport = any(s in msg for s in (
-                "ssl", "eof", "connection reset", "max retries", "remote disconnected",
-            ))
-            last_error = e
-            if not (blocked or transport) or attempt == 5:
-                raise
-            # Longer waits when blocked so the proxy has time to rotate IP
-            # (1s, 2s, 3s, 5s, 8s ≈ Fibonacci, total ~19s worst case)
-            wait = (1, 2, 3, 5, 8)[attempt]
-            time.sleep(wait)
-
-    if last_error is not None:
-        raise last_error
-    raise RuntimeError("transcript fetch failed without an error")
