@@ -373,6 +373,39 @@ def debug_download(url: str):
             + "</p>"
         )
 
+        # ----- Step-by-step logs -----
+        logs = result.get("logs") or []
+        if logs:
+            out_html.append("<h2>③ Detailed step-by-step logs</h2>")
+            out_html.append(
+                "<pre style='background:#1a1a22;padding:14px;border-radius:6px;overflow-x:auto;"
+                "font-size:12px;max-height:600px;overflow-y:auto'>"
+            )
+            for entry in logs:
+                t_s = entry.get("t", 0)
+                msg = entry.get("msg", "")
+                # Render any extra fields as compact key=val
+                extras = {k: v for k, v in entry.items() if k not in ("t", "msg")}
+                extras_str = ""
+                if extras:
+                    parts = []
+                    for k, v in extras.items():
+                        v_str = str(v)
+                        if len(v_str) > 80:
+                            v_str = v_str[:77] + "..."
+                        parts.append(f"{k}={v_str}")
+                    extras_str = "  " + " | ".join(parts)
+                color = "#7dd3a4"
+                lower = msg.lower()
+                if "fail" in lower or "error" in lower or "timed out" in lower:
+                    color = "#ff8c8c"
+                elif "wait" in lower or "navig" in lower:
+                    color = "#d4b15c"
+                out_html.append(
+                    f"<div style='color:{color}'>[{t_s:6.2f}s] {msg}{extras_str}</div>"
+                )
+            out_html.append("</pre>")
+
         out_html.append("<h2>③ First 5 transcript snippets</h2>")
         out_html.append("<pre>" + "\n".join(
             f"[{s['start']:6.1f}s] {s['text']}" for s in snippets[:5]
