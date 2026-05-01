@@ -268,31 +268,23 @@ def download_md(request: Request, job_id: str):
 
 @app.get("/debug/download", response_class=HTMLResponse)
 def debug_download(url: str):
-    """Strip-down test: download a video, extract 6 frames, return them.
-
-    No transcript, no Whisper, no Claude. Pure proof-of-concept that
-    yt-dlp + ffmpeg + the configured proxy can actually fetch a YouTube
-    video from inside this container.
+    """Strip-down test: drive the remote browser, capture 6 frames + metadata + transcript.
 
     Usage: GET /debug/download?url=https://youtu.be/VIDEO_ID
     """
-    import subprocess as sp
-    import tempfile
     import time as _time
-
     from transcript import extract_video_id
-    from pipeline import _canonical_youtube_url, _yt_dlp_download
+    from browser import capture
 
     out_html = ["<!doctype html><html><head><meta charset='utf-8'>",
-                "<title>FarziPedia · Download debug</title>",
+                "<title>FarziPedia · Browser-capture debug</title>",
                 "<style>body{font-family:ui-sans-serif,system-ui;background:#101015;color:#eee;padding:24px;max-width:900px;margin:auto}"
                 "h1{margin:0 0 8px}h2{color:#d4b15c;border-bottom:1px solid #333;padding-bottom:4px}"
                 "img{max-width:100%;border-radius:6px;margin:8px 0;display:block}"
-                "pre{background:#1a1a22;padding:12px;border-radius:6px;overflow-x:auto;font-size:13px}"
+                "pre{background:#1a1a22;padding:12px;border-radius:6px;overflow-x:auto;font-size:13px;white-space:pre-wrap}"
                 ".ok{color:#7dd3a4}.err{color:#ff8c8c}</style></head><body>",
-                "<h1>📖 FarziPedia · Download debug</h1>",
+                "<h1>📖 FarziPedia · Browser-capture debug</h1>",
                 f"<p><strong>Input URL:</strong> <code>{url}</code></p>"]
-
     started = _time.time()
     try:
         video_id = extract_video_id(url)
@@ -301,59 +293,49 @@ def debug_download(url: str):
         out_html.append(f"<p>Video id: <code>{video_id}</code></p>")
 
         job_id = uuid.uuid4().hex[:8]
-        job_dir = JOBS_ROOT / f"debug_{job_id}"
-        job_dir.mkdir(parents=True, exist_ok=True)
-        shots_dir = job_dir / "screenshots"
-        shots_dir.mkdir(exist_ok=True)
-        video_path = job_dir / "video.mp4"
+        shots_dir = JOBS_ROOT / f"debug_{job_id}" / "screenshots"
 
-        out_html.append("<h2>① Download via proxy</h2>")
+        # Pick 6 evenly-spaced timestamps; we'll discover duration from
+        # the browser session, then re-pick if our placeholder was off.
+        # For the debug endpoint we just use a coarse 0–600s sweep.
+        placeholder_ts = [10.0, 60.0, 120.0, 180.0, 240.0, 300.0]
+        out_html.append("<h2>① Open remote browser + capture</h2>")
         t0 = _time.time()
-        meta = _yt_dlp_download(_canonical_youtube_url(video_id), video_path)
+        result = capture(video_id, planned_timestamps=placeholder_ts, screenshots_dir=shots_dir)
         t1 = _time.time()
-        size_mb = video_path.stat().st_size / 1_000_000
-        title = meta.get("title", "(unknown)")
-        duration = meta.get("duration") or 0
+        meta = result["meta"]
+        snippets = result["snippets"]
+        frames = result["frames"]
         out_html.append(
-            f"<p class='ok'>✓ downloaded in {t1-t0:.1f}s · {size_mb:.1f} MB · "
-            f"<code>{title}</code> · {int(duration)}s long</p>"
+            f"<p class='ok'>✓ session done in {t1-t0:.1f}s · "
+            f"<code>{meta.get('title','(unknown)')}</code> · "
+            f"{int(meta.get('duration') or 0)}s · "
+            f"{len(snippets)} caption snippets · {len(frames)} frames</p>"
         )
 
-        out_html.append("<h2>② Extract 6 sample frames</h2>")
-        # Pick 6 evenly-spaced timestamps across the video
-        if duration <= 0:
-            duration = 60.0
-        timestamps = [round(duration * f, 1) for f in (0.05, 0.20, 0.40, 0.60, 0.80, 0.95)]
-        for t in timestamps:
-            frame_path = shots_dir / f"t{int(round(t))}.jpg"
-            sp.run(
-                ["ffmpeg", "-hide_banner", "-loglevel", "error",
-                 "-ss", str(t), "-i", str(video_path),
-                 "-frames:v", "1", "-q:v", "4", "-y", str(frame_path)],
-                check=True,
-            )
+        out_html.append("<h2>② Frames captured</h2>")
+        for f in frames:
+            t = f["timestamp"]
+            name = f["path"].name
             out_html.append(
                 f"<p><strong>t={t:.1f}s:</strong></p>"
-                f"<img src='/jobs/debug_{job_id}/screenshots/{frame_path.name}' alt='frame at {t}s'>"
+                f"<img src='/jobs/debug_{job_id}/screenshots/{name}' alt='frame at {t}s'>"
             )
 
-        # Clean up the video, keep frames for serving
-        try:
-            video_path.unlink()
-        except OSError:
-            pass
+        out_html.append("<h2>③ First 5 transcript snippets</h2>")
+        out_html.append("<pre>" + "\n".join(
+            f"[{s['start']:6.1f}s] {s['text']}" for s in snippets[:5]
+        ) + "</pre>")
 
         out_html.append(
             f"<h2 class='ok'>✅ End-to-end successful</h2>"
-            f"<p>Total time: {_time.time()-started:.1f}s. Bright Data + yt-dlp + ffmpeg "
-            "all working from inside the Render container.</p>"
+            f"<p>Total time: {_time.time()-started:.1f}s.</p>"
         )
     except Exception as e:
         import traceback as tb
-        tbtxt = tb.format_exc()
         out_html.append(
             f"<h2 class='err'>❌ Failed at: {type(e).__name__}</h2>"
-            f"<pre>{tbtxt[-3000:]}</pre>"
+            f"<pre>{tb.format_exc()[-3000:]}</pre>"
         )
 
     out_html.append("</body></html>")
