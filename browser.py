@@ -71,6 +71,45 @@ def _parse_xml_captions(xml: str) -> List[dict]:
     return out
 
 
+def _wait_for_ad_to_end(page, log, max_wait_s: float = 25.0) -> bool:
+    """If a YouTube ad is playing, try to skip it / wait for it to end.
+
+    Returns True if no ad is showing by the end (success), False if ad
+    is still running after max_wait_s.
+    """
+    deadline = time.time() + max_wait_s
+    saw_ad = False
+    while time.time() < deadline:
+        state = page.evaluate(
+            """() => {
+                const player = document.getElementById('movie_player');
+                const isAd = !!(player && player.classList.contains('ad-showing'));
+                // Try clicking any visible skip-ad button
+                let clicked = null;
+                if (isAd) {
+                    const skip = document.querySelector(
+                        '.ytp-skip-ad-button, .ytp-ad-skip-button, '
+                        + '.ytp-ad-skip-button-modern, .videoAdUiSkipButton'
+                    );
+                    if (skip) { try { skip.click(); clicked = skip.className; } catch (e) {} }
+                }
+                return { isAd, clicked };
+            }"""
+        )
+        if not state.get("isAd"):
+            if saw_ad:
+                log("Ad ended / skipped")
+            return True
+        if not saw_ad:
+            log("AD playing — waiting / trying skip button")
+            saw_ad = True
+        if state.get("clicked"):
+            log(f"Clicked skip button: {state.get('clicked')}")
+        page.wait_for_timeout(800)
+    log(f"Ad still playing after {max_wait_s}s — proceeding anyway")
+    return False
+
+
 def _hide_overlay_js() -> str:
     return """
     const clickFirst = (selectors) => {
@@ -370,6 +409,12 @@ def capture(video_id: str,
             state_after_play = page.evaluate(_VIDEO_STATE_JS)
             log("State after play()", **(state_after_play or {}))
 
+            # If a pre-roll ad is playing, wait for it / skip it before
+            # we begin frame capture. Otherwise the FIRST seek lands on
+            # ad timeline and we screenshot the ad instead of the video.
+            if state_after_play and state_after_play.get("playerAdShowing"):
+                _wait_for_ad_to_end(page, log, max_wait_s=30.0)
+
             duration = details.get("duration") or 0.0
 
             # If a planner_factory was given, call it now (after we have
@@ -438,6 +483,23 @@ def capture(video_id: str,
                     }}"""
                 )
                 log(f"seekTo({t}) called")
+                # If a mid-roll ad fired (or YouTube replaced our seek
+                # with a fresh pre-roll), wait it out before we screenshot.
+                page.wait_for_timeout(400)
+                state_after_seek = page.evaluate(_VIDEO_STATE_JS)
+                if state_after_seek and state_after_seek.get("playerAdShowing"):
+                    log(f"Ad detected at t={t} — waiting for it to end")
+                    _wait_for_ad_to_end(page, log, max_wait_s=20.0)
+                    # After the ad, re-issue the seek (player may have
+                    # auto-played past our target during the ad).
+                    page.evaluate(
+                        f"""() => {{
+                            const player = document.getElementById('movie_player');
+                            if (player && player.seekTo) player.seekTo({t}, true);
+                        }}"""
+                    )
+                    log(f"Re-seeked to {t} after ad")
+
                 # Wait for the seek to FULLY complete:
                 #   1. seeking === false (player has finished the seek operation)
                 #   2. readyState >= 3 (HAVE_FUTURE_DATA — frame data is decoded)
@@ -545,30 +607,21 @@ def capture(video_id: str,
                     size = 0
                     log(f"Hashing FAILED: {e}")
 
-                # Detect duplicate frames — same SHA as a previous capture
-                # means the seek didn't actually load new video data and
-                # the canvas captured the stale decoded buffer.
+                # Track duplicate frames (same SHA as a previous one) but
+                # DO NOT drop them anymore. A frame might be a legitimate
+                # match (e.g. same shot repeated in B-roll) and dropping
+                # leaves gaps in the final blog. Just flag and keep.
                 is_duplicate = sha != "?" and sha in seen_hashes
                 if is_duplicate:
                     duplicate_streak += 1
-                    log(f"DUPLICATE frame at t={t} (sha={sha} matches earlier capture). "
-                        f"Streak={duplicate_streak}. "
-                        f"{'KEEPING (debug)' if keep_duplicates else 'Skipping.'}")
-                    if not keep_duplicates:
-                        try:
-                            path.unlink()
-                        except OSError:
-                            pass
-                        if duplicate_streak >= 3:
-                            log("Three consecutive duplicate frames — player is stuck. "
-                                "Aborting remaining captures.")
-                            break
-                        continue
+                    log(f"Frame at t={t} has duplicate sha={sha} "
+                        f"(streak={duplicate_streak}). Keeping anyway.")
                 else:
                     duplicate_streak = 0
                     if sha != "?":
                         seen_hashes.add(sha)
-                log(f"Saved {path.name}: sha={sha} size={size}B method={method}")
+                log(f"Saved {path.name}: sha={sha} size={size}B method={method} "
+                    f"{'[DUP]' if is_duplicate else ''}")
 
                 frames.append({
                     "timestamp": float(t),
@@ -577,6 +630,7 @@ def capture(video_id: str,
                     "sha": sha,
                     "size": size,
                     "method": method,
+                    "is_duplicate": is_duplicate,
                 })
 
             log(f"DONE. Captured {len(frames)} frames total.")
