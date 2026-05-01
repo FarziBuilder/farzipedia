@@ -298,12 +298,13 @@ def debug_download(url: str):
         # Pick 6 evenly-spaced timestamps; we'll discover duration from
         # the browser session, then re-pick if our placeholder was off.
         # For the debug endpoint we just use a coarse 0–600s sweep.
-        # Use widely-spread timestamps — for most videos these will be
-        # at very different moments (intro / late), so if frames actually
-        # contain different content we'll see clearly distinct screenshots.
-        # SHA hashes below also confirm at byte level. Two frames here
-        # is a deliberate trim to fit Browserless free-tier 30s session.
-        placeholder_ts = [5.0, 120.0]
+        # Stay within the first ~45s of the video — both timestamps fall
+        # inside YouTube's initial buffer ([0, ~43s] for most videos), so
+        # seeks complete instantly without waiting for CDN segment fetch.
+        # Two frames is enough to verify "different timestamps produce
+        # different SHA hashes". Designed to fit Browserless's 30s
+        # free-tier session limit.
+        placeholder_ts = [8.0, 38.0]
         out_html.append("<h2>① Open remote browser + capture</h2>")
         t0 = _time.time()
         result = capture(video_id, planned_timestamps=placeholder_ts,

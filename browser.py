@@ -230,39 +230,26 @@ def capture(video_id: str,
             if debug_landing:
                 try:
                     landing_path = screenshots_dir / "_landing.jpg"
+                    # Viewport-only (not full_page) — much faster on a long
+                    # YouTube watch page (was costing 5s on free tier).
                     page.screenshot(path=str(landing_path), type="jpeg",
-                                    quality=70, full_page=True)
+                                    quality=70, full_page=False)
                     landing_info["title"] = page.title()
                     landing_info["screenshot"] = landing_path
-                    log(f"Landing screenshot saved, page title={landing_info['title']!r}")
+                    log(f"Landing screenshot saved (viewport), title={landing_info['title']!r}")
                 except Exception as e:
                     log(f"Landing screenshot FAILED: {e}")
 
-            # Try clicking consent button right after navigation
-            consent_clicked = False
-            for sel in (
-                'button[aria-label*="Reject the use"]',
-                'button[aria-label*="Accept the use"]',
-                'tp-yt-paper-button[aria-label*="Reject"]',
-                'tp-yt-paper-button[aria-label*="Accept"]',
-                'form[action*="consent"] button[type="submit"]',
-            ):
-                try:
-                    page.click(sel, timeout=2_000)
-                    page.wait_for_timeout(500)
-                    log(f"Clicked consent button: {sel}")
-                    consent_clicked = True
-                    break
-                except Exception:
-                    continue
-            if not consent_clicked:
-                log("No consent button clicked (none matched)")
+            # Skip the click-each-consent-selector loop entirely. With our
+            # preset CONSENT + SOCS cookies + the Render Secret File cookies,
+            # the consent dialog should already be dismissed. Saves ~10s
+            # of wasted 2-second timeouts per missing selector.
 
             # Wait for player JSON
             try:
                 page.wait_for_function(
                     "() => window.ytInitialPlayerResponse && document.querySelector('video')",
-                    timeout=30_000,
+                    timeout=15_000,
                 )
                 log("ytInitialPlayerResponse + video element are present")
             except Exception as wait_err:
@@ -438,7 +425,7 @@ def capture(video_id: str,
                             }}
                             return false;
                         }}""",
-                        timeout=12_000,
+                        timeout=6_000,
                     )
                     log(f"Seek COMPLETE: not-seeking + readyState>=3 + buffer covers {t}")
                 except Exception as e:
@@ -449,7 +436,7 @@ def capture(video_id: str,
                         state = page.evaluate(_VIDEO_STATE_JS) or {}
                     except Exception:
                         state = {"err": "page closed"}
-                    log(f"Seek wait TIMED OUT after 12s — state: "
+                    log(f"Seek wait TIMED OUT after 6s — state: "
                         f"seeking={state.get('seeking')} readyState={state.get('readyState')} "
                         f"currentTime={state.get('currentTime')} bufferedRanges={state.get('bufferedRanges')} "
                         f"firstBuffered={state.get('firstBuffered')}")
@@ -459,7 +446,7 @@ def capture(video_id: str,
                         break
 
                 # Brief settle for the GPU to paint the newly-decoded frame.
-                page.wait_for_timeout(500)
+                page.wait_for_timeout(250)
                 page.evaluate(_hide_overlay_js())
 
                 state_at_capture = page.evaluate(_VIDEO_STATE_JS)
