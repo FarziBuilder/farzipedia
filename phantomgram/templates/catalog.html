@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Phantoms · Phantomgram{% endblock %}
+{% block body %}
+
+<div class="mb-8">
+  <div class="text-xs uppercase tracking-[0.2em] text-mist-400">Catalog</div>
+  <h1 class="text-3xl lg:text-4xl font-bold tracking-tight">Phantoms</h1>
+  <p class="text-mist-300 mt-1 max-w-2xl">
+    Each phantom is an Instagram automation. Click one to configure inputs,
+    pick an account and launch a run.
+  </p>
+</div>
+
+{% for cat, items in by_cat.items() %}
+<section class="mb-10">
+  <div class="flex items-center gap-3 mb-4">
+    <h2 class="text-xs uppercase tracking-[0.2em] text-mist-400">{{ CATEGORY_LABELS.get(cat, cat) }}</h2>
+    <div class="flex-1 h-px bg-ink-800"></div>
+    <span class="text-xs text-mist-400">{{ items|length }} phantom{{ '' if items|length == 1 else 's' }}</span>
+  </div>
+  <div class="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+    {% for p in items %}
+    <a href="/phantoms/{{ p.id }}"
+       class="group rounded-2xl border border-ink-800 bg-ink-900 p-5 hover:border-grad-mid hover:shadow-glow transition relative overflow-hidden">
+      <div class="absolute -top-12 -right-12 w-32 h-32 rounded-full bg-ig-grad opacity-0 group-hover:opacity-20 blur-2xl transition"></div>
+      <div class="flex items-start justify-between mb-3">
+        <span class="text-3xl">{{ p.icon }}</span>
+        {% if p.needs_account %}
+          <span class="text-[10px] uppercase tracking-wider text-grad-via bg-grad-via/10 border border-grad-via/30 rounded-full px-2 py-0.5">
+            Needs login
+          </span>
+        {% else %}
+          <span class="text-[10px] uppercase tracking-wider text-mist-400 bg-ink-800 border border-ink-700 rounded-full px-2 py-0.5">
+            No login
+          </span>
+        {% endif %}
+      </div>
+      <div class="font-semibold text-lg">{{ p.name }}</div>
+      <div class="text-sm text-mist-300 mt-1">{{ p.tagline }}</div>
+      <div class="text-xs text-mist-400 mt-3 line-clamp-2">{{ p.description }}</div>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endfor %}
+
+{% endblock %}

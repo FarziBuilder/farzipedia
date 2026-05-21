@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Runs · Phantomgram{% endblock %}
+{% block body %}
+
+<div class="mb-6 flex items-center justify-between gap-4 flex-wrap">
+  <div>
+    <div class="text-xs uppercase tracking-[0.2em] text-mist-400">History</div>
+    <h1 class="text-3xl font-bold tracking-tight">Runs</h1>
+  </div>
+  <form method="get" action="/runs" class="flex gap-2 text-sm">
+    <select name="phantom_id" class="rounded-lg bg-ink-800 border border-ink-700 px-3 py-2 text-sm">
+      <option value="">All phantoms</option>
+      {% for p in phantoms %}
+        <option value="{{ p.id }}" {% if filter_phantom == p.id %}selected{% endif %}>{{ p.icon }} {{ p.name }}</option>
+      {% endfor %}
+    </select>
+    <select name="status" class="rounded-lg bg-ink-800 border border-ink-700 px-3 py-2 text-sm">
+      <option value="">Any status</option>
+      {% for s in ['queued', 'running', 'done', 'error'] %}
+        <option value="{{ s }}" {% if filter_status == s %}selected{% endif %}>{{ s|capitalize }}</option>
+      {% endfor %}
+    </select>
+    <button class="px-3 py-2 rounded-lg bg-ig-grad text-white text-sm font-medium">Filter</button>
+  </form>
+</div>
+
+<div class="rounded-2xl border border-ink-800 bg-ink-900 overflow-hidden">
+  {% if not runs %}
+    <div class="px-5 py-16 text-center text-mist-400">
+      No runs match these filters. <a href="/phantoms" class="text-grad-via hover:underline">Launch a phantom →</a>
+    </div>
+  {% else %}
+  <table class="w-full text-sm">
+    <thead class="bg-ink-800/60 text-xs uppercase tracking-wider text-mist-400">
+      <tr>
+        <th class="text-left px-5 py-3">Phantom</th>
+        <th class="text-left px-3 py-3">Status</th>
+        <th class="text-left px-3 py-3">Progress</th>
+        <th class="text-right px-3 py-3">Results</th>
+        <th class="text-left px-3 py-3">Started</th>
+        <th class="text-left px-3 py-3">Duration</th>
+        <th class="text-right px-5 py-3"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-ink-800">
+      {% for r in runs %}
+        {% set p = get_phantom(r.phantom_id) %}
+        <tr class="hover:bg-ink-800/40 transition">
+          <td class="px-5 py-3">
+            <div class="flex items-center gap-2">
+              <span class="text-lg">{{ p.icon if p else '⚙️' }}</span>
+              <div>
+                <div class="font-medium">{{ p.name if p else r.phantom_id }}</div>
+                <div class="text-[11px] text-mist-400 font-mono">{{ r.id }}</div>
+              </div>
+            </div>
+          </td>
+          <td class="px-3 py-3">
+            <span class="text-xs px-2 py-0.5 rounded-full bg-{{ r.status|status_color }}-500/15 text-{{ r.status|status_color }}-300 capitalize">
+              {{ r.status }}
+            </span>
+          </td>
+          <td class="px-3 py-3 w-40">
+            <div class="w-full h-1.5 bg-ink-800 rounded-full overflow-hidden">
+              <div class="h-full bg-ig-grad" style="width: {{ (r.progress or 0) * 100 }}%"></div>
+            </div>
+            <div class="text-[11px] text-mist-400 mt-1 truncate">{{ r.message or '—' }}</div>
+          </td>
+          <td class="px-3 py-3 text-right tabular-nums">{{ r.result_count or '—' }}</td>
+          <td class="px-3 py-3 text-mist-300">{{ r.created_at|fmt_ts }}</td>
+          <td class="px-3 py-3 text-mist-300">{{ r.started_at|fmt_duration(r.finished_at) }}</td>
+          <td class="px-5 py-3 text-right">
+            <a href="/runs/{{ r.id }}" class="text-xs text-mist-300 hover:text-white">Open →</a>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
+
+{% endblock %}

@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% block title %}Run {{ run.id }} · Phantomgram{% endblock %}
+{% block body %}
+
+<div class="mb-6">
+  <a href="/runs" class="text-xs text-mist-400 hover:text-white">← All runs</a>
+</div>
+
+<div class="rounded-2xl border border-ink-800 bg-ink-900 p-6 mb-6 relative overflow-hidden">
+  <div class="absolute -top-20 -right-20 w-56 h-56 rounded-full bg-ig-grad opacity-15 blur-3xl"></div>
+  <div class="flex items-start gap-4 relative">
+    <span class="text-5xl">{{ phantom.icon if phantom else '⚙️' }}</span>
+    <div class="flex-1 min-w-0">
+      <div class="text-xs uppercase tracking-wider text-mist-400">Run</div>
+      <h1 class="text-2xl font-bold tracking-tight truncate">{{ phantom.name if phantom else run.phantom_id }}</h1>
+      <div class="flex flex-wrap items-center gap-3 mt-2 text-xs text-mist-300">
+        <span class="font-mono">{{ run.id }}</span>
+        {% if account %}<span>· @{{ account.username }}</span>{% endif %}
+        <span>· started {{ run.started_at|fmt_ts }}</span>
+        <span>· duration <span id="duration">{{ run.started_at|fmt_duration(run.finished_at) }}</span></span>
+      </div>
+    </div>
+    <div class="text-right shrink-0">
+      <span id="status-chip"
+        class="text-xs px-3 py-1 rounded-full bg-{{ run.status|status_color }}-500/15 text-{{ run.status|status_color }}-300 capitalize">
+        {{ run.status }}
+      </span>
+      <div class="text-xs text-mist-400 mt-2"><span id="result-count">{{ run.result_count }}</span> rows</div>
+    </div>
+  </div>
+  <div class="mt-5">
+    <div class="w-full h-2 bg-ink-800 rounded-full overflow-hidden">
+      <div id="progress-bar" class="h-full bg-ig-grad transition-all" style="width: {{ (run.progress or 0) * 100 }}%"></div>
+    </div>
+    <div class="text-xs text-mist-400 mt-1.5"><span id="status-message">{{ run.message or '' }}</span></div>
+  </div>
+</div>
+
+<div class="grid lg:grid-cols-3 gap-6">
+  <div class="lg:col-span-2 space-y-6">
+    <div class="rounded-2xl border border-ink-800 bg-ink-900 overflow-hidden">
+      <div class="px-5 py-4 border-b border-ink-800 flex items-center justify-between">
+        <div>
+          <div class="text-xs uppercase tracking-wider text-mist-400">Output</div>
+          <div class="font-semibold">Results <span id="result-badge" class="text-mist-400 font-normal text-sm">({{ results|length }})</span></div>
+        </div>
+        {% if results %}
+        <div class="flex gap-2">
+          <a href="/runs/{{ run.id }}/download.csv"
+             class="text-xs px-3 py-1.5 rounded-lg bg-ink-800 border border-ink-700 hover:bg-ink-700">⬇ CSV</a>
+          <a href="/runs/{{ run.id }}/download.json"
+             class="text-xs px-3 py-1.5 rounded-lg bg-ink-800 border border-ink-700 hover:bg-ink-700">⬇ JSON</a>
+        </div>
+        {% endif %}
+      </div>
+      {% if run.status != 'done' %}
+        <div id="awaiting" class="px-5 py-16 text-center text-mist-400 text-sm">
+          Awaiting completion…
+        </div>
+      {% elif not results %}
+        <div class="px-5 py-16 text-center text-mist-400 text-sm">No rows produced.</div>
+      {% else %}
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="bg-ink-800/60 text-xs uppercase tracking-wider text-mist-400">
+              <tr>
+                {% for col in results[0].keys() %}
+                  <th class="text-left px-4 py-2 whitespace-nowrap">{{ col }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-ink-800">
+              {% for row in results[:200] %}
+                <tr class="hover:bg-ink-800/40">
+                  {% for col in results[0].keys() %}
+                    {% set v = row.get(col, '') %}
+                    <td class="px-4 py-2 align-top max-w-xs truncate" title="{{ v }}">
+                      {% if v is string and v.startswith('http') %}
+                        <a href="{{ v }}" target="_blank" class="text-grad-via hover:underline">{{ v }}</a>
+                      {% else %}
+                        {{ v }}
+                      {% endif %}
+                    </td>
+                  {% endfor %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% if results|length > 200 %}
+          <div class="px-5 py-3 text-xs text-mist-400 border-t border-ink-800">
+            Showing first 200 of {{ results|length }} rows. Use CSV/JSON download for the full set.
+          </div>
+        {% endif %}
+      {% endif %}
+    </div>
+
+    <div class="rounded-2xl border border-ink-800 bg-ink-900 overflow-hidden">
+      <div class="px-5 py-4 border-b border-ink-800">
+        <div class="text-xs uppercase tracking-wider text-mist-400">Console</div>
+        <div class="font-semibold">Logs</div>
+      </div>
+      <pre id="log" class="px-5 py-4 text-xs font-mono text-mist-200 max-h-80 overflow-auto whitespace-pre-wrap">{{ log }}</pre>
+    </div>
+  </div>
+
+  <aside class="space-y-6">
+    <div class="rounded-2xl border border-ink-800 bg-ink-900 p-5">
+      <div class="text-xs uppercase tracking-wider text-mist-400">Inputs</div>
+      <div class="font-semibold mb-3">Configuration</div>
+      <dl class="text-sm space-y-2">
+        {% for k, v in run.inputs.items() %}
+          <div>
+            <dt class="text-xs text-mist-400 uppercase tracking-wider">{{ k }}</dt>
+            <dd class="font-mono text-xs bg-ink-800 border border-ink-700 rounded px-2 py-1 mt-0.5 whitespace-pre-wrap break-all">{{ v }}</dd>
+          </div>
+        {% endfor %}
+      </dl>
+    </div>
+
+    <div class="rounded-2xl border border-ink-800 bg-ink-900 p-5">
+      <div class="text-xs uppercase tracking-wider text-mist-400">Re-run</div>
+      <div class="font-semibold mb-3">Quick actions</div>
+      <div class="space-y-2">
+        <a href="/phantoms/{{ run.phantom_id }}" class="block text-center px-3 py-2 rounded-lg bg-ig-grad text-white text-sm font-medium">
+          Run {{ phantom.name if phantom else 'phantom' }} again
+        </a>
+        <a href="/runs?phantom_id={{ run.phantom_id }}" class="block text-center px-3 py-2 rounded-lg bg-ink-800 border border-ink-700 text-sm hover:bg-ink-700">
+          All runs of this phantom
+        </a>
+      </div>
+    </div>
+  </aside>
+</div>
+
+{% if run.status in ['queued', 'running'] %}
+<script>
+async function poll() {
+  try {
+    const r = await fetch('/runs/{{ run.id }}/status');
+    if (!r.ok) return;
+    const data = await r.json();
+    document.getElementById('progress-bar').style.width = (data.progress * 100) + '%';
+    document.getElementById('status-message').textContent = data.message || '';
+    document.getElementById('result-count').textContent = data.result_count;
+    document.getElementById('duration').textContent = data.elapsed + 's';
+    const chip = document.getElementById('status-chip');
+    chip.textContent = data.status;
+    chip.className = 'text-xs px-3 py-1 rounded-full capitalize bg-' + statusColor(data.status) + '-500/15 text-' + statusColor(data.status) + '-300';
+    if (data.log_tail) document.getElementById('log').textContent = data.log_tail.join('\n');
+    if (data.status === 'done' || data.status === 'error') {
+      setTimeout(() => location.reload(), 800);
+    } else {
+      setTimeout(poll, 1500);
+    }
+  } catch (e) {
+    setTimeout(poll, 3000);
+  }
+}
+function statusColor(s) {
+  return ({queued:'amber', running:'indigo', done:'emerald', error:'rose'})[s] || 'slate';
+}
+poll();
+</script>
+{% endif %}
+
+{% endblock %}

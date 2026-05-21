@@ -17,6 +17,9 @@ ENV/
 # Jobs / generated artifacts
 jobs/*
 !jobs/.gitkeep
+
+# Phantomgram runtime data (SQLite + per-run results & logs)
+phantomgram/data/
 *.mp4
 *.webm
 *.mkv

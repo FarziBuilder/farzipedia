@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Schedules · Phantomgram{% endblock %}
+{% block body %}
+
+<div class="mb-8">
+  <div class="text-xs uppercase tracking-[0.2em] text-mist-400">Recurring</div>
+  <h1 class="text-3xl font-bold tracking-tight">Schedules</h1>
+  <p class="text-mist-300 mt-1 max-w-2xl">
+    Phantoms launched with a cadence other than “run once” show up here. They
+    fire automatically when due.
+  </p>
+</div>
+
+<div class="rounded-2xl border border-ink-800 bg-ink-900 overflow-hidden">
+  {% if not schedules %}
+    <div class="px-5 py-16 text-center text-mist-400 text-sm">
+      No schedules yet. Pick a phantom and choose a cadence when launching.
+    </div>
+  {% else %}
+  <table class="w-full text-sm">
+    <thead class="bg-ink-800/60 text-xs uppercase tracking-wider text-mist-400">
+      <tr>
+        <th class="text-left px-5 py-3">Phantom</th>
+        <th class="text-left px-3 py-3">Account</th>
+        <th class="text-left px-3 py-3">Cadence</th>
+        <th class="text-left px-3 py-3">Last run</th>
+        <th class="text-left px-3 py-3">Next run</th>
+        <th class="text-left px-3 py-3">State</th>
+        <th class="text-right px-5 py-3"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-ink-800">
+      {% for s in schedules %}
+        {% set p = get_phantom(s.phantom_id) %}
+        {% set a = get_account(s.account_id) if s.account_id else None %}
+        <tr class="hover:bg-ink-800/40">
+          <td class="px-5 py-3">
+            <div class="flex items-center gap-2">
+              <span class="text-lg">{{ p.icon if p else '⚙️' }}</span>
+              <span class="font-medium">{{ p.name if p else s.phantom_id }}</span>
+            </div>
+          </td>
+          <td class="px-3 py-3 text-mist-300">{{ '@' + a.username if a else '—' }}</td>
+          <td class="px-3 py-3 text-mist-300 capitalize">{{ s.cadence.replace('_', ' ') }}</td>
+          <td class="px-3 py-3 text-mist-300">{{ s.last_run_at|fmt_ts }}</td>
+          <td class="px-3 py-3 text-mist-300">{{ s.next_run_at|fmt_ts }}</td>
+          <td class="px-3 py-3">
+            {% if s.enabled %}
+              <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300">Enabled</span>
+            {% else %}
+              <span class="text-xs px-2 py-0.5 rounded-full bg-ink-800 text-mist-400">Paused</span>
+            {% endif %}
+          </td>
+          <td class="px-5 py-3 text-right">
+            <form method="post" action="/schedules/{{ s.id }}/toggle" class="inline">
+              <button class="text-xs text-mist-300 hover:text-white mr-3">
+                {{ 'Pause' if s.enabled else 'Resume' }}
+              </button>
+            </form>
+            <form method="post" action="/schedules/{{ s.id }}/delete" class="inline"
+                  onsubmit="return confirm('Delete this schedule?');">
+              <button class="text-xs text-rose-300 hover:text-rose-200">Delete</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
+
+{% endblock %}

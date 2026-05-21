@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · Phantomgram{% endblock %}
+{% block body %}
+
+<div class="flex flex-col gap-1 mb-8">
+  <div class="text-xs uppercase tracking-[0.2em] text-mist-400">Phantomgram</div>
+  <h1 class="text-3xl lg:text-4xl font-bold tracking-tight">Welcome back 👋</h1>
+  <p class="text-mist-300 max-w-2xl">
+    Run PhantomBuster-style automations on Instagram — scrape profiles, hashtags
+    and followers, or queue up actions like follows, likes and DMs.
+  </p>
+</div>
+
+<div class="grid grid-cols-2 lg:grid-cols-5 gap-3 lg:gap-4 mb-10">
+  {% set tiles = [
+    ('Total runs', stats.total, 'from-grad-via to-grad-mid'),
+    ('Active', stats.running, 'from-indigo-500 to-grad-end'),
+    ('Successful', stats.done, 'from-emerald-400 to-emerald-600'),
+    ('Failed', stats.errored, 'from-rose-400 to-rose-600'),
+    ('Rows collected', stats.results, 'from-amber-400 to-grad-via'),
+  ] %}
+  {% for label, val, grad in tiles %}
+  <div class="rounded-2xl border border-ink-700 bg-ink-900 p-4 lg:p-5 shadow-soft relative overflow-hidden">
+    <div class="absolute -top-8 -right-8 w-24 h-24 rounded-full bg-gradient-to-br {{ grad }} opacity-30 blur-2xl"></div>
+    <div class="text-xs uppercase tracking-wider text-mist-400">{{ label }}</div>
+    <div class="text-3xl font-bold mt-1">{{ val }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
+  <div class="lg:col-span-2 rounded-2xl border border-ink-800 bg-ink-900 overflow-hidden">
+    <div class="px-5 py-4 border-b border-ink-800 flex items-center justify-between">
+      <div>
+        <div class="text-xs uppercase tracking-wider text-mist-400">Recent activity</div>
+        <div class="font-semibold">Latest runs</div>
+      </div>
+      <a href="/runs" class="text-xs text-mist-300 hover:text-white underline-offset-4 hover:underline">View all →</a>
+    </div>
+    {% if not recent %}
+      <div class="px-5 py-12 text-center text-mist-400">
+        No runs yet. <a href="/phantoms" class="text-grad-via hover:underline">Pick a phantom</a> to get started.
+      </div>
+    {% else %}
+      <ul class="divide-y divide-ink-800">
+        {% for r in recent %}
+          {% set p = get_phantom(r.phantom_id) %}
+          <li>
+            <a href="/runs/{{ r.id }}" class="flex items-center gap-3 px-5 py-3 hover:bg-ink-800/60 transition">
+              <span class="text-xl w-8 text-center">{{ p.icon if p else '⚙️' }}</span>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                  <span class="font-medium truncate">{{ p.name if p else r.phantom_id }}</span>
+                  <span class="text-xs text-mist-400">· {{ r.created_at|fmt_ts }}</span>
+                </div>
+                <div class="text-xs text-mist-400 truncate">{{ r.message or '—' }}</div>
+              </div>
+              <span class="text-xs px-2 py-1 rounded-full bg-{{ r.status|status_color }}-500/15 text-{{ r.status|status_color }}-300 capitalize">
+                {{ r.status }}
+              </span>
+              {% if r.result_count %}
+              <span class="text-xs text-mist-300 tabular-nums">{{ r.result_count }} rows</span>
+              {% endif %}
+            </a>
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </div>
+
+  <div class="rounded-2xl border border-ink-800 bg-ink-900 p-5">
+    <div class="text-xs uppercase tracking-wider text-mist-400">At a glance</div>
+    <div class="font-semibold mb-4">Setup</div>
+    <dl class="space-y-3 text-sm">
+      <div class="flex justify-between"><dt class="text-mist-300">Phantoms available</dt><dd class="font-medium">{{ phantoms_total }}</dd></div>
+      <div class="flex justify-between"><dt class="text-mist-300">Connected accounts</dt><dd class="font-medium">{{ accounts_total }}</dd></div>
+      <div class="flex justify-between"><dt class="text-mist-300">Active schedules</dt><dd class="font-medium">{{ schedules_total }}</dd></div>
+    </dl>
+    <div class="mt-5 grid grid-cols-2 gap-2">
+      <a href="/phantoms" class="text-center px-3 py-2 rounded-lg bg-ig-grad text-white text-sm font-medium shadow-glow hover:opacity-95">Browse phantoms</a>
+      <a href="/accounts" class="text-center px-3 py-2 rounded-lg bg-ink-800 border border-ink-700 text-sm font-medium hover:bg-ink-700">Add account</a>
+    </div>
+  </div>
+</div>
+
+<div class="rounded-2xl border border-ink-800 bg-ink-900 overflow-hidden">
+  <div class="px-5 py-4 border-b border-ink-800 flex items-center justify-between">
+    <div>
+      <div class="text-xs uppercase tracking-wider text-mist-400">Catalog</div>
+      <div class="font-semibold">All phantoms by category</div>
+    </div>
+    <a href="/phantoms" class="text-xs text-mist-300 hover:text-white">Open catalog →</a>
+  </div>
+  <div class="grid md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-ink-800">
+    {% for cat, items in by_cat.items() %}
+      <div class="p-5">
+        <div class="text-xs uppercase tracking-wider text-mist-400 mb-3">{{ CATEGORY_LABELS.get(cat, cat) }}</div>
+        <ul class="space-y-2">
+          {% for p in items %}
+          <li>
+            <a href="/phantoms/{{ p.id }}" class="flex items-start gap-3 group">
+              <span class="text-lg leading-6 w-6 text-center">{{ p.icon }}</span>
+              <span>
+                <span class="font-medium group-hover:text-white">{{ p.name }}</span>
+                <span class="block text-xs text-mist-400">{{ p.tagline }}</span>
+              </span>
+            </a>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Accounts · Phantomgram{% endblock %}
+{% block body %}
+
+<div class="mb-8">
+  <div class="text-xs uppercase tracking-[0.2em] text-mist-400">Identities</div>
+  <h1 class="text-3xl font-bold tracking-tight">Instagram accounts</h1>
+  <p class="text-mist-300 mt-1 max-w-2xl">
+    Connect Instagram accounts that action phantoms (follow, like, DM, view stories)
+    will operate from. Stored locally in your SQLite database.
+  </p>
+</div>
+
+<div class="grid lg:grid-cols-3 gap-6">
+  <div class="lg:col-span-2 rounded-2xl border border-ink-800 bg-ink-900 overflow-hidden">
+    <div class="px-5 py-4 border-b border-ink-800">
+      <div class="text-xs uppercase tracking-wider text-mist-400">Connected</div>
+      <div class="font-semibold">Your accounts</div>
+    </div>
+    {% if not accounts %}
+      <div class="px-5 py-16 text-center text-mist-400 text-sm">
+        No accounts yet. Add one on the right to enable action phantoms.
+      </div>
+    {% else %}
+    <ul class="divide-y divide-ink-800">
+      {% for a in accounts %}
+      <li class="px-5 py-4 flex items-center gap-4">
+        <span class="inline-block w-10 h-10 rounded-full bg-ig-grad flex items-center justify-center text-lg font-bold">
+          {{ a.username[:1]|upper }}
+        </span>
+        <div class="flex-1 min-w-0">
+          <div class="font-medium">@{{ a.username }}{% if a.label %} <span class="text-mist-400 font-normal">· {{ a.label }}</span>{% endif %}</div>
+          <div class="text-xs text-mist-400">
+            Added {{ a.created_at|fmt_ts }}
+            {% if a.session_cookie %}· session stored{% endif %}
+            {% if a.proxy %}· proxy {{ a.proxy }}{% endif %}
+          </div>
+        </div>
+        <span class="text-[10px] uppercase tracking-wider text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 rounded-full px-2 py-0.5">
+          {{ a.status }}
+        </span>
+        <form method="post" action="/accounts/{{ a.id }}/delete"
+              onsubmit="return confirm('Remove this account?');">
+          <button class="text-xs text-rose-300 hover:text-rose-200">Remove</button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+
+  <form method="post" action="/accounts" class="rounded-2xl border border-ink-800 bg-ink-900 p-5 space-y-4">
+    <div>
+      <div class="text-xs uppercase tracking-wider text-mist-400">New</div>
+      <div class="font-semibold">Add account</div>
+    </div>
+    <div>
+      <label class="block text-sm text-mist-200 mb-1.5">Username <span class="text-grad-mid">*</span></label>
+      <input name="username" required placeholder="natgeo"
+        class="w-full rounded-lg bg-ink-800 border border-ink-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-grad-mid" />
+    </div>
+    <div>
+      <label class="block text-sm text-mist-200 mb-1.5">Label (optional)</label>
+      <input name="label" placeholder="Personal / Brand / Test"
+        class="w-full rounded-lg bg-ink-800 border border-ink-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-grad-mid" />
+    </div>
+    <div>
+      <label class="block text-sm text-mist-200 mb-1.5">Session cookie (sessionid)</label>
+      <textarea name="session_cookie" rows="3" placeholder="paste sessionid cookie"
+        class="w-full rounded-lg bg-ink-800 border border-ink-700 px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-grad-mid"></textarea>
+      <div class="text-xs text-mist-400 mt-1">Stored locally. Used to authenticate action phantoms.</div>
+    </div>
+    <div>
+      <label class="block text-sm text-mist-200 mb-1.5">Proxy (optional)</label>
+      <input name="proxy" placeholder="http://user:pass@proxy:port"
+        class="w-full rounded-lg bg-ink-800 border border-ink-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-grad-mid" />
+    </div>
+    <button class="w-full px-3 py-2.5 rounded-lg bg-ig-grad text-white text-sm font-medium shadow-glow">
+      Connect account
+    </button>
+    <div class="text-xs text-mist-400 leading-relaxed pt-2 border-t border-ink-800">
+      ⚠ Real Instagram automation can get accounts banned. Use the
+      Instagram Graph API for legitimate Business / Creator workflows.
+    </div>
+  </form>
+</div>
+
+{% endblock %}

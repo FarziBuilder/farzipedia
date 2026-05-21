@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+{% block title %}{{ phantom.name }} · Phantomgram{% endblock %}
+{% block body %}
+
+<div class="mb-6">
+  <a href="/phantoms" class="text-xs text-mist-400 hover:text-white">← All phantoms</a>
+</div>
+
+<div class="grid lg:grid-cols-3 gap-6">
+  <div class="lg:col-span-2 space-y-6">
+    <div class="rounded-2xl border border-ink-800 bg-ink-900 p-6 relative overflow-hidden">
+      <div class="absolute -top-20 -right-20 w-56 h-56 rounded-full bg-ig-grad opacity-15 blur-3xl"></div>
+      <div class="flex items-start gap-4 relative">
+        <span class="text-5xl">{{ phantom.icon }}</span>
+        <div class="flex-1">
+          <div class="flex items-center gap-2">
+            <span class="text-[10px] uppercase tracking-wider text-mist-400 bg-ink-800 border border-ink-700 rounded-full px-2 py-0.5">
+              {{ CATEGORY_LABELS.get(phantom.category, phantom.category) }}
+            </span>
+            {% if phantom.needs_account %}
+              <span class="text-[10px] uppercase tracking-wider text-grad-via bg-grad-via/10 border border-grad-via/30 rounded-full px-2 py-0.5">
+                Needs login
+              </span>
+            {% endif %}
+          </div>
+          <h1 class="text-3xl font-bold mt-1">{{ phantom.name }}</h1>
+          <p class="text-mist-300 mt-1">{{ phantom.tagline }}</p>
+        </div>
+      </div>
+      <p class="mt-5 text-sm text-mist-200 leading-relaxed">{{ phantom.description }}</p>
+    </div>
+
+    <form method="post" action="/phantoms/{{ phantom.id }}/run"
+          class="rounded-2xl border border-ink-800 bg-ink-900 p-6 space-y-5">
+      <div>
+        <div class="text-xs uppercase tracking-wider text-mist-400">Configure</div>
+        <div class="font-semibold text-lg">Inputs</div>
+      </div>
+
+      {% for f in phantom.fields %}
+      <div>
+        <label class="block text-sm font-medium text-mist-200 mb-1.5" for="f-{{ f.name }}">
+          {{ f.label }}{% if f.required %} <span class="text-grad-mid">*</span>{% endif %}
+        </label>
+        {% if f.kind == 'textarea' %}
+          <textarea id="f-{{ f.name }}" name="{{ f.name }}" rows="5"
+            placeholder="{{ f.placeholder }}"
+            class="w-full rounded-lg bg-ink-800 border border-ink-700 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-grad-mid"
+            {% if f.required %}required{% endif %}>{{ f.default or '' }}</textarea>
+        {% elif f.kind == 'number' %}
+          <input id="f-{{ f.name }}" name="{{ f.name }}" type="number"
+            value="{{ f.default or '' }}" placeholder="{{ f.placeholder }}"
+            class="w-32 rounded-lg bg-ink-800 border border-ink-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-grad-mid"
+            {% if f.required %}required{% endif %} />
+        {% elif f.kind == 'checkbox' %}
+          <label class="inline-flex items-center gap-2 text-sm">
+            <input id="f-{{ f.name }}" name="{{ f.name }}" type="checkbox"
+              {% if f.default %}checked{% endif %}
+              class="rounded bg-ink-800 border-ink-600 text-grad-mid focus:ring-grad-mid" />
+            <span class="text-mist-300">{{ f.help or f.label }}</span>
+          </label>
+        {% else %}
+          <input id="f-{{ f.name }}" name="{{ f.name }}" type="text"
+            value="{{ f.default or '' }}" placeholder="{{ f.placeholder }}"
+            class="w-full rounded-lg bg-ink-800 border border-ink-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-grad-mid"
+            {% if f.required %}required{% endif %} />
+        {% endif %}
+        {% if f.help and f.kind != 'checkbox' %}
+          <div class="text-xs text-mist-400 mt-1">{{ f.help }}</div>
+        {% endif %}
+      </div>
+      {% endfor %}
+
+      <div class="grid md:grid-cols-2 gap-4 pt-2 border-t border-ink-800">
+        <div>
+          <label class="block text-sm font-medium text-mist-200 mb-1.5">Instagram account</label>
+          {% if accounts %}
+          <select name="account_id"
+            class="w-full rounded-lg bg-ink-800 border border-ink-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-grad-mid">
+            <option value="">{% if phantom.needs_account %}— choose an account —{% else %}— none (no login) —{% endif %}</option>
+            {% for a in accounts %}
+              <option value="{{ a.id }}">@{{ a.username }}{% if a.label %} ({{ a.label }}){% endif %}</option>
+            {% endfor %}
+          </select>
+          {% else %}
+          <div class="text-xs text-mist-400 bg-ink-800 border border-dashed border-ink-700 rounded-lg px-3 py-2">
+            No accounts yet. <a href="/accounts" class="text-grad-via hover:underline">Add one →</a>
+          </div>
+          {% endif %}
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-mist-200 mb-1.5">Schedule</label>
+          <select name="schedule"
+            class="w-full rounded-lg bg-ink-800 border border-ink-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-grad-mid">
+            <option value="once">Run once now</option>
+            <option value="hourly">Repeat hourly</option>
+            <option value="every_6h">Repeat every 6 hours</option>
+            <option value="daily">Repeat daily</option>
+            <option value="weekly">Repeat weekly</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end pt-2">
+        <button type="submit"
+          class="px-5 py-2.5 rounded-lg bg-ig-grad text-white font-medium shadow-glow hover:opacity-95">
+          Launch phantom →
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <aside class="space-y-6">
+    <div class="rounded-2xl border border-ink-800 bg-ink-900 p-5">
+      <div class="text-xs uppercase tracking-wider text-mist-400">Output schema</div>
+      <div class="font-semibold mb-3">Result columns</div>
+      <div class="flex flex-wrap gap-1.5">
+        {% for c in phantom.output_columns %}
+          <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-ink-800 border border-ink-700 text-mist-200">{{ c }}</span>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="rounded-2xl border border-ink-800 bg-ink-900 overflow-hidden">
+      <div class="px-5 py-4 border-b border-ink-800">
+        <div class="text-xs uppercase tracking-wider text-mist-400">History</div>
+        <div class="font-semibold">Recent runs</div>
+      </div>
+      {% if not recent_runs %}
+        <div class="px-5 py-8 text-sm text-center text-mist-400">No runs yet for this phantom.</div>
+      {% else %}
+        <ul class="divide-y divide-ink-800">
+          {% for r in recent_runs %}
+          <li>
+            <a href="/runs/{{ r.id }}" class="block px-5 py-3 hover:bg-ink-800/60 transition">
+              <div class="flex items-center justify-between">
+                <span class="text-xs text-mist-300">{{ r.created_at|fmt_ts }}</span>
+                <span class="text-xs px-2 py-0.5 rounded-full bg-{{ r.status|status_color }}-500/15 text-{{ r.status|status_color }}-300 capitalize">{{ r.status }}</span>
+              </div>
+              <div class="text-xs text-mist-400 mt-0.5 truncate">{{ r.message or '—' }}</div>
+            </a>
+          </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </div>
+
+    <div class="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-5 text-xs text-amber-100/90 leading-relaxed">
+      <div class="font-semibold text-amber-300 mb-1">⚠️ Demo mode</div>
+      Phantom runners simulate Instagram calls and produce realistic synthetic
+      output. Real Instagram automation violates IG's ToS and gets accounts
+      banned — use the official Instagram Graph API for legitimate Business
+      or Creator workflows.
+    </div>
+  </aside>
+</div>
+
+{% endblock %}
