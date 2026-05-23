@@ -214,6 +214,167 @@ main { position: relative; z-index: 1; }
 .codex-card-solid::before { top: 6px; left: 6px; border-right: none; border-bottom: none; }
 .codex-card-solid::after  { bottom: 6px; right: 6px; border-left: none; border-top: none; }
 
+/* ============================================================
+   Folio cards — the PDF library on the home page
+   ============================================================ */
+
+.folio-card {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  transition: transform 0.35s ease, box-shadow 0.35s ease;
+}
+.folio-card:hover { transform: translateY(-4px); }
+.folio-card:hover .folio-thumb { filter: sepia(0.45) contrast(1.05) brightness(1.0); }
+.folio-card:hover .folio-cta   { color: #a83c1f; }
+
+/* ---- The framed cover (thumbnail or engraved illustration) ---- */
+.folio-frame {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  background:
+    linear-gradient(rgba(244, 232, 200, 0.65), rgba(244, 232, 200, 0.65)),
+    radial-gradient(at 30% 20%, rgba(212, 176, 92, 0.30) 0, transparent 60%),
+    #ebd9a8;
+  border: 1px solid rgba(107, 66, 32, 0.55);
+  border-radius: 3px;
+  box-shadow:
+    inset 0 0 30px rgba(80, 50, 20, 0.10),
+    0 1px 0 rgba(255, 255, 255, 0.5) inset,
+    0 18px 36px -18px rgba(80, 50, 20, 0.40),
+    0 4px 10px -4px rgba(80, 50, 20, 0.25);
+}
+
+/* Engraved corner brackets on every folio frame */
+.folio-frame::before,
+.folio-frame::after {
+  content: "";
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border: 1px solid #6b4220;
+  pointer-events: none;
+  z-index: 3;
+}
+.folio-frame::before { top: 6px; left: 6px;  border-right: none; border-bottom: none; }
+.folio-frame::after  { bottom: 6px; right: 6px; border-left: none;  border-top: none; }
+
+/* ---- Real YouTube thumbnail, sepia-toned ---- */
+.folio-thumb {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: sepia(0.7) contrast(1.05) brightness(0.92) saturate(0.85);
+  transition: filter 0.35s ease, transform 0.6s ease;
+}
+.folio-card:hover .folio-thumb { transform: scale(1.03); }
+
+/* ---- Parchment overlay that warms the thumbnail toward our palette ---- */
+.folio-overlay {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(135deg, rgba(168, 60, 31, 0.10), rgba(244, 232, 200, 0) 45%),
+    linear-gradient(0deg, rgba(80, 50, 20, 0.32), rgba(80, 50, 20, 0) 55%),
+    radial-gradient(at 50% 50%, rgba(244, 232, 200, 0) 0%, rgba(80, 50, 20, 0.22) 100%);
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* ---- Folio number ribbon (top-left) ---- */
+.folio-folionum {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 4;
+  font-family: 'Cinzel', serif;
+  font-size: 0.65rem;
+  letter-spacing: 0.22em;
+  color: #f4e8c8;
+  background: rgba(42, 31, 18, 0.78);
+  padding: 4px 9px;
+  border: 0.5px solid #c9a449;
+  border-radius: 1px;
+  text-shadow: 0 1px 0 rgba(0,0,0,0.5);
+}
+
+/* ---- "PDF" wax-seal badge (bottom-right of the cover) ---- */
+.folio-pdf-badge {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 4;
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-family: 'Cinzel', serif;
+  font-weight: 800;
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  color: #f4e8c8;
+  background: radial-gradient(circle at 35% 30%, #c8401f 0, #8b1f10 65%, #5a1208 100%);
+  border: 1.5px solid #5a1208;
+  text-shadow: 0 1px 0 rgba(0,0,0,0.4);
+  box-shadow:
+    inset 0 3px 6px rgba(255, 255, 255, 0.15),
+    inset 0 -4px 8px rgba(0, 0, 0, 0.3),
+    0 4px 10px -3px rgba(80, 20, 10, 0.5);
+  transform: rotate(-6deg);
+}
+
+/* ---- Engraved cover variant (CSS-only, no thumbnail) ---- */
+.folio-engraved {
+  background:
+    linear-gradient(rgba(250, 243, 224, 0.95), rgba(250, 243, 224, 0.95)),
+    radial-gradient(at 30% 20%, rgba(212, 176, 92, 0.28) 0, transparent 60%),
+    #ebd9a8;
+}
+.folio-engraved-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+}
+
+/* ---- Fallback if a thumbnail fails to load: turn the frame into an engraved style ---- */
+.folio-frame-fallback {
+  background:
+    linear-gradient(rgba(250, 243, 224, 0.95), rgba(250, 243, 224, 0.95)),
+    radial-gradient(at 30% 20%, rgba(212, 176, 92, 0.28) 0, transparent 60%),
+    #ebd9a8;
+}
+.folio-frame-fallback .folio-overlay { display: none; }
+.folio-frame-fallback::after {
+  /* keep the corner bracket */
+}
+
+/* ---- Metadata block below the cover ---- */
+.folio-meta {
+  padding: 18px 4px 0;
+}
+.folio-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed rgba(107, 66, 32, 0.35);
+}
+.folio-cta {
+  font-family: 'IM Fell English', serif;
+  font-style: italic;
+  font-size: 0.8rem;
+  color: #6b4220;
+  transition: color 0.25s ease;
+}
+
 /* Smooth anchors */
 html { scroll-behavior: smooth; }
 
