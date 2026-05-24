@@ -216,6 +216,11 @@ def index(request: Request):
     )
 
 
+@app.get("/privacy", response_class=HTMLResponse)
+def privacy(request: Request):
+    return templates.TemplateResponse(request, "privacy.html")
+
+
 # ============================================================================
 #  Anthropic proxy — extension calls this so users don't need their own key.
 #  Body is forwarded verbatim to api.anthropic.com/v1/messages with the

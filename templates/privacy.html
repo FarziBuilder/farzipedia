@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+{% block title %}Privacy Policy · FarziPedia{% endblock %}
+{% block body %}
+<main class="min-h-screen">
+
+  <!-- Top bar -->
+  <header class="px-6 md:px-14 pt-8 pb-4 flex items-center justify-between text-sepia-500">
+    <a href="/" class="inline-flex items-center gap-2 group">
+      <span class="text-xl">❦</span>
+      <span class="font-inscription tracking-codex font-semibold text-ink-900">
+        F<span class="text-accent-500">arzi</span>P<span class="text-accent-500">edia</span>
+      </span>
+    </a>
+    <span class="font-codex italic text-sm tracking-wide hidden md:inline">Folio · Privatum</span>
+  </header>
+
+  <!-- Frontispiece -->
+  <section class="px-6 md:px-14 pb-6 flex justify-center">
+    <div class="codex-page w-full max-w-3xl px-8 md:px-14 py-10 md:py-12 text-center">
+      <div class="ornament-rule mb-4 max-w-md mx-auto"><span class="fleuron">❦</span></div>
+      <p class="font-inscription tracking-codex text-sepia-500 text-xs md:text-sm mb-3">
+        — Liber de Privatis —
+      </p>
+      <h1 class="font-roman text-ink-900 text-3xl md:text-5xl font-semibold leading-tight">
+        Privacy <em class="text-accent-500 font-roman">Policy</em>
+      </h1>
+      <p class="font-codex italic text-sepia-500 text-base md:text-lg mt-4 max-w-2xl mx-auto">
+        What we collect, how we handle it, and what we do not do.
+      </p>
+      <p class="font-codex text-ink-700 text-sm mt-3">
+        Effective date: <span class="font-mono not-italic">2026-05-25</span> ·
+        Last updated: <span class="font-mono not-italic">2026-05-25</span>
+      </p>
+      <div class="ornament-rule mt-5 max-w-md mx-auto"><span class="fleuron">❧</span></div>
+    </div>
+  </section>
+
+  <!-- Body -->
+  <article class="px-6 md:px-14 pb-20">
+    <div class="max-w-3xl mx-auto codex-page p-8 md:p-12 font-codex text-ink-800 leading-relaxed text-base md:text-lg">
+
+      <!-- ==================== Plain-language summary ==================== -->
+      <section class="mb-10 p-5 rounded-sm border border-sepia-500/30 bg-paper-0/70">
+        <p class="font-roman italic text-sepia-500 text-xs tracking-[0.2em] uppercase mb-2">In plain English</p>
+        <ul class="space-y-2 text-ink-700">
+          <li>• FarziPedia turns YouTube videos into illustrated blog posts. The Chrome extension reads the video's transcript and captures frames from your active YouTube tab.</li>
+          <li>• Those frames + transcript are sent to our backend (farzi.me), which calls the Anthropic Claude API on your behalf to write the post.</li>
+          <li>• The generated blog post and its frames are stored on farzi.me and shown on the public homepage library.</li>
+          <li>• We do <strong class="text-ink-900">not</strong> collect your name, email, account info, location, or YouTube identity. We do <strong class="text-ink-900">not</strong> sell or share user data. We do <strong class="text-ink-900">not</strong> use cookies or trackers in the extension.</li>
+          <li>• If you want a folio removed from farzi.me, email us — see <a href="#contact" class="text-accent-500 underline decoration-dotted">Contact</a>.</li>
+        </ul>
+      </section>
+
+      <!-- ==================== Who we are ==================== -->
+      <h2 class="font-roman text-2xl md:text-3xl font-semibold text-ink-900 mt-10 mb-4">1. Who we are</h2>
+      <p class="mb-4">
+        FarziPedia ("we", "us", "the service") is an open-source project that provides:
+      </p>
+      <ul class="list-disc pl-6 mb-4 space-y-1">
+        <li>A Chrome browser extension distributed via the Chrome Web Store and at <a href="https://github.com/FarziBuilder/farzipedia-extension" class="text-accent-500 underline decoration-dotted" target="_blank" rel="noopener">github.com/FarziBuilder/farzipedia-extension</a>.</li>
+        <li>A backend service (FastAPI) running at <a href="https://www.farzi.me" class="text-accent-500 underline decoration-dotted">farzi.me</a> that hosts the public folio library and proxies AI requests.</li>
+      </ul>
+      <p class="mb-4">
+        Source code for both is public at <a href="https://github.com/FarziBuilder" class="text-accent-500 underline decoration-dotted" target="_blank" rel="noopener">github.com/FarziBuilder</a>. This policy applies to both the extension and the website.
+      </p>
+
+      <!-- ==================== What we collect ==================== -->
+      <h2 class="font-roman text-2xl md:text-3xl font-semibold text-ink-900 mt-10 mb-4">2. What information we collect</h2>
+      <p class="mb-4">
+        FarziPedia is designed to collect the <em>minimum</em> information necessary to do its job. We do not collect personally identifying information from end users.
+      </p>
+
+      <h3 class="font-roman text-xl font-semibold text-ink-900 mt-6 mb-2">2.1 Information the extension reads from your browser</h3>
+      <p class="mb-3">
+        When you press <em>Render the Codex</em> on a YouTube video, the extension reads:
+      </p>
+      <ul class="list-disc pl-6 mb-4 space-y-1">
+        <li><strong>The video's public metadata</strong> — its video ID, title, channel name, duration, and the URL of the watch page you have open.</li>
+        <li><strong>The video's caption track</strong> (transcript), fetched from YouTube's existing endpoints using your current browser session.</li>
+        <li><strong>Screenshots of the video element</strong> at automatically-chosen timestamps, captured via Chrome's <span class="font-mono text-sm">tabs.captureVisibleTab</span> API. Only the video element is cropped from each capture; YouTube's surrounding UI is hidden first.</li>
+      </ul>
+      <p class="mb-4">
+        The extension does <strong class="text-ink-900">not</strong> read information from any other tab, never runs without your explicit click on the toolbar icon, and does not access your YouTube account, browsing history, bookmarks, or any other browser data.
+      </p>
+
+      <h3 class="font-roman text-xl font-semibold text-ink-900 mt-6 mb-2">2.2 Information the backend receives</h3>
+      <p class="mb-3">
+        When the extension finishes capturing, it sends the following to <span class="font-mono text-sm">farzi.me</span>:
+      </p>
+      <ul class="list-disc pl-6 mb-4 space-y-1">
+        <li>The captured transcript and frames, packaged together, forwarded to Anthropic's Claude API.</li>
+        <li>After Claude returns a generated blog post, the post itself plus the frames are stored on farzi.me.</li>
+        <li>Standard HTTP request metadata generated by your browser/network: your IP address, User-Agent string, and the request timestamp. These are retained only in transient server memory for rate-limiting purposes (see §4.2) and are not written to long-term logs.</li>
+      </ul>
+
+      <h3 class="font-roman text-xl font-semibold text-ink-900 mt-6 mb-2">2.3 Information the extension stores locally on your device</h3>
+      <p class="mb-3">
+        The extension caches the following on your device only, never transmitted anywhere:
+      </p>
+      <ul class="list-disc pl-6 mb-4 space-y-1">
+        <li>Your most recent five generated folios (blog content + captured frames), in <span class="font-mono text-sm">chrome.storage.local</span>, so you can re-open them offline. Older folios are auto-deleted.</li>
+        <li>A short-lived "job-running" flag so the popup can re-attach to an in-progress generation if you close and reopen it.</li>
+      </ul>
+      <p class="mb-4">
+        Clearing the extension's storage (via <span class="font-mono text-sm">chrome://extensions/</span>) deletes all of the above.
+      </p>
+
+      <h3 class="font-roman text-xl font-semibold text-ink-900 mt-6 mb-2">2.4 What we do NOT collect</h3>
+      <ul class="list-disc pl-6 mb-4 space-y-1">
+        <li>Your name, email, age, gender, address, phone number, or other personally identifying information.</li>
+        <li>Your YouTube account identity, login state, watch history, subscriptions, or playlists.</li>
+        <li>Any payment, financial, or health information.</li>
+        <li>Your browsing history, the contents of other tabs, or any data from non-YouTube websites.</li>
+        <li>Geolocation data.</li>
+        <li>Keystrokes, mouse movements, screen recordings, or any form of analytics on user behaviour.</li>
+      </ul>
+
+      <!-- ==================== How we use it ==================== -->
+      <h2 class="font-roman text-2xl md:text-3xl font-semibold text-ink-900 mt-10 mb-4">3. How we use the information</h2>
+      <p class="mb-3">We use the data described in §2 solely for the following purposes:</p>
+      <ul class="list-disc pl-6 mb-4 space-y-1">
+        <li><strong>Generating your blog post.</strong> The transcript and frames are sent to Anthropic's Claude API via our backend proxy so Claude can write the post about the video.</li>
+        <li><strong>Displaying your folio publicly.</strong> The resulting blog post and its frames are saved to farzi.me and shown on the public homepage gallery, which any visitor may browse.</li>
+        <li><strong>Rate-limiting abuse.</strong> Your IP address is kept in transient memory (not persistent storage) for up to 60 seconds to enforce a per-IP request cap on the API proxy.</li>
+        <li><strong>Operating the service.</strong> Standard server logs (HTTP status, request path, response time) are produced by our hosting provider (Render) for diagnosing outages.</li>
+      </ul>
+      <p class="mb-4">
+        We do <strong class="text-ink-900">not</strong> use any of this data for advertising, profiling, behavioural targeting, training machine-learning models, or sale to third parties.
+      </p>
+
+      <!-- ==================== Third parties ==================== -->
+      <h2 class="font-roman text-2xl md:text-3xl font-semibold text-ink-900 mt-10 mb-4">4. Third parties</h2>
+
+      <h3 class="font-roman text-xl font-semibold text-ink-900 mt-6 mb-2">4.1 Service providers we use</h3>
+      <p class="mb-3">
+        To operate FarziPedia we route data through the following providers. None of them receive personal information from us, but you should be aware of their independent privacy practices:
+      </p>
+      <ul class="list-disc pl-6 mb-4 space-y-2">
+        <li><strong>Anthropic, PBC</strong> — receives the transcript and frames captured by the extension, returns a generated blog post. Anthropic's API privacy policy applies to that data while it is being processed by them. See <a href="https://www.anthropic.com/legal/privacy" class="text-accent-500 underline decoration-dotted" target="_blank" rel="noopener">anthropic.com/legal/privacy</a>.</li>
+        <li><strong>Render, Inc.</strong> — hosts the farzi.me FastAPI service and persistent disk on which generated folios are stored. See <a href="https://render.com/privacy" class="text-accent-500 underline decoration-dotted" target="_blank" rel="noopener">render.com/privacy</a>.</li>
+        <li><strong>Cloudflare, Inc.</strong> — provides DNS and CDN/edge proxy for the farzi.me domain. Cloudflare may observe request metadata (IP, User-Agent, requested URL). See <a href="https://www.cloudflare.com/privacypolicy/" class="text-accent-500 underline decoration-dotted" target="_blank" rel="noopener">cloudflare.com/privacypolicy</a>.</li>
+        <li><strong>Google LLC (Fonts)</strong> — the popup and result pages link to Google Fonts stylesheets (Cinzel, Cormorant Garamond, IM Fell English, Italianno) for typography. When the extension renders those pages your browser requests the font CSS and font files from Google's CDN, which may observe request metadata. See <a href="https://policies.google.com/privacy" class="text-accent-500 underline decoration-dotted" target="_blank" rel="noopener">policies.google.com/privacy</a>.</li>
+        <li><strong>YouTube / Google LLC</strong> — the extension reads transcript and frame data from YouTube pages you have already opened in your own browser session. We do not initiate any new connection to YouTube on your behalf.</li>
+      </ul>
+
+      <h3 class="font-roman text-xl font-semibold text-ink-900 mt-6 mb-2">4.2 We do not sell user data</h3>
+      <p class="mb-4">
+        We do not sell, rent, license, or otherwise transfer user data to third parties for marketing, advertising, lending, creditworthiness assessment, or any purpose unrelated to the single purpose described above. We do not have advertising or analytics SDKs of any kind.
+      </p>
+
+      <!-- ==================== Storage / retention ==================== -->
+      <h2 class="font-roman text-2xl md:text-3xl font-semibold text-ink-900 mt-10 mb-4">5. Data storage and retention</h2>
+
+      <h3 class="font-roman text-xl font-semibold text-ink-900 mt-6 mb-2">5.1 On our backend</h3>
+      <ul class="list-disc pl-6 mb-4 space-y-1">
+        <li><strong>Generated folios</strong> (the blog JSON + captured frames) are stored on a Render persistent disk attached to the farzi.me service. They are kept indefinitely so they remain readable from the public library, unless you request deletion (§6).</li>
+        <li><strong>IP addresses</strong> used by the rate limiter live in process memory only and are evicted automatically after 60 seconds.</li>
+        <li><strong>Server logs</strong> produced by Render are retained per Render's default retention policy.</li>
+      </ul>
+
+      <h3 class="font-roman text-xl font-semibold text-ink-900 mt-6 mb-2">5.2 On your device (extension)</h3>
+      <p class="mb-4">
+        The extension's local cache holds at most your last five folios. Older entries are deleted automatically. Removing the extension or clearing its data deletes everything stored on your device.
+      </p>
+
+      <h3 class="font-roman text-xl font-semibold text-ink-900 mt-6 mb-2">5.3 Security</h3>
+      <p class="mb-4">
+        All connections to farzi.me and Anthropic are made over HTTPS. The Anthropic API key used by the backend is stored as a Render environment variable and never sent to the extension or any other client. Source code is open for inspection at the GitHub links above.
+      </p>
+
+      <!-- ==================== Your rights ==================== -->
+      <h2 class="font-roman text-2xl md:text-3xl font-semibold text-ink-900 mt-10 mb-4">6. Your rights and how to exercise them</h2>
+      <p class="mb-3">
+        Because we do not collect identifying information, we cannot look up "your" data by name or account — but you can still:
+      </p>
+      <ul class="list-disc pl-6 mb-4 space-y-1">
+        <li><strong>Remove a folio from the public library.</strong> Email <a href="mailto:privacy@farzi.me" class="text-accent-500 underline decoration-dotted">privacy@farzi.me</a> with the folio's URL (the <span class="font-mono text-sm">/blog/&lt;id&gt;</span> link). We will delete it within seven (7) days.</li>
+        <li><strong>Delete locally cached folios on your device.</strong> Open <span class="font-mono text-sm">chrome://extensions/</span>, find FarziPedia, click "Details" → "Site settings" or simply remove the extension.</li>
+        <li><strong>Stop using the service.</strong> Uninstalling the extension stops all data collection by FarziPedia immediately. No account or subscription exists to cancel.</li>
+        <li><strong>Request information.</strong> If you live in a jurisdiction with data-subject access rights (GDPR, CCPA, etc.), contact <a href="mailto:privacy@farzi.me" class="text-accent-500 underline decoration-dotted">privacy@farzi.me</a>. Because we hold no identifiers, our response is usually limited to confirming which folios match a description you provide.</li>
+      </ul>
+
+      <!-- ==================== Children ==================== -->
+      <h2 class="font-roman text-2xl md:text-3xl font-semibold text-ink-900 mt-10 mb-4">7. Children's privacy</h2>
+      <p class="mb-4">
+        FarziPedia is not directed at children under 13 (or the equivalent minimum age in your jurisdiction). We do not knowingly collect information from children. If you believe a child has used the service and you would like associated content removed from farzi.me, contact us at <a href="mailto:privacy@farzi.me" class="text-accent-500 underline decoration-dotted">privacy@farzi.me</a>.
+      </p>
+
+      <!-- ==================== International ==================== -->
+      <h2 class="font-roman text-2xl md:text-3xl font-semibold text-ink-900 mt-10 mb-4">8. International users</h2>
+      <p class="mb-4">
+        The farzi.me backend is hosted in the United States (Render's Oregon region). Anthropic's API endpoints are also in the United States. If you use the service from outside the United States, your captured transcript and frame data will be transmitted to and processed in the United States. We rely on standard HTTPS transport for all such transfers.
+      </p>
+
+      <!-- ==================== Changes ==================== -->
+      <h2 class="font-roman text-2xl md:text-3xl font-semibold text-ink-900 mt-10 mb-4">9. Changes to this policy</h2>
+      <p class="mb-4">
+        If we materially change how we collect, use, or share information we will update this page and, where reasonable, bump the extension's version number with a note in the release. The "Last updated" date at the top of this page always reflects the current revision. Material changes will be noted in the GitHub commit history of <a href="https://github.com/FarziBuilder/farzipedia" class="text-accent-500 underline decoration-dotted" target="_blank" rel="noopener">FarziBuilder/farzipedia</a> for transparency.
+      </p>
+
+      <!-- ==================== Contact ==================== -->
+      <h2 id="contact" class="font-roman text-2xl md:text-3xl font-semibold text-ink-900 mt-10 mb-4">10. Contact</h2>
+      <p class="mb-3">
+        Privacy questions, removal requests, or anything else you'd like to raise:
+      </p>
+      <ul class="list-disc pl-6 mb-4 space-y-1">
+        <li>Email: <a href="mailto:privacy@farzi.me" class="text-accent-500 underline decoration-dotted">privacy@farzi.me</a></li>
+        <li>GitHub issues: <a href="https://github.com/FarziBuilder/farzipedia-extension/issues" class="text-accent-500 underline decoration-dotted" target="_blank" rel="noopener">github.com/FarziBuilder/farzipedia-extension/issues</a></li>
+      </ul>
+
+      <!-- Colophon -->
+      <div class="ornament-rule mt-12 mb-2 max-w-md mx-auto"><span class="fleuron">❦</span></div>
+      <p class="font-roman italic text-sepia-500 text-sm text-center">
+        Crafted in good faith, for the curious reader.
+      </p>
+    </div>
+  </article>
+
+  <!-- Footer -->
+  <footer class="px-6 md:px-14 py-6 border-t border-sepia-500/30 font-codex italic text-xs text-sepia-500 flex flex-wrap items-center justify-between gap-2">
+    <span><a href="/" class="hover:text-accent-500 not-italic font-inscription tracking-codex">← Back to the library</a></span>
+    <span class="font-inscription not-italic tracking-codex text-ink-700">F · P</span>
+  </footer>
+</main>
+{% endblock %}
