@@ -255,7 +255,9 @@ async def proxy_messages(request: Request):
             upstream_headers[h] = v
 
     try:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=30.0)) as client:
+        # 600s timeout: heavy vision requests can legitimately take 4-5 minutes.
+        # The extension reduces frames + max_tokens to fit comfortably under this.
+        async with httpx.AsyncClient(timeout=httpx.Timeout(600.0, connect=30.0)) as client:
             r = await client.post(
                 "https://api.anthropic.com/v1/messages",
                 content=body,
