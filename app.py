@@ -1,15 +1,21 @@
 """Farzipedia: turn any YouTube video into a beautiful blog post."""
 
+import base64
 import json
+import os
 import re
 import threading
 import time
 import traceback
 import uuid
+from collections import defaultdict, deque
 from io import StringIO
 from pathlib import Path
+from typing import Optional, Tuple
 
+import httpx
 from fastapi import FastAPI, Form, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import (
     HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response,
 )
@@ -27,8 +33,50 @@ templates = Jinja2Templates(directory=str(APP_ROOT / "templates"))
 app.mount("/static", StaticFiles(directory=str(APP_ROOT / "static")), name="static")
 app.mount("/jobs", StaticFiles(directory=str(JOBS_ROOT)), name="jobs")
 
+# Open CORS for /v1/* — the Chrome extension calls these from a
+# chrome-extension:// origin and we don't expose user data through them.
+# Real safety comes from the Anthropic spend cap + rate limiter, not CORS.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
+)
+
 JOBS: dict[str, dict] = {}
 JOBS_LOCK = threading.Lock()
+
+# --- Anthropic proxy state ----------------------------------------------------
+# In-memory token-bucket-ish: a deque of request times per IP. No persistence
+# across redeploys, no cross-instance sharing — fine for a single Render
+# instance behind a CDN. If we ever scale out, swap to Redis.
+PROXY_RATE_LIMIT = int(os.environ.get("PROXY_RATE_LIMIT", "20"))   # requests
+PROXY_RATE_WINDOW = int(os.environ.get("PROXY_RATE_WINDOW", "60"))  # seconds
+_proxy_buckets: dict[str, deque] = defaultdict(deque)
+_proxy_lock = threading.Lock()
+
+
+def _client_ip(request: Request) -> str:
+    """Best-effort client IP behind Render's load balancer."""
+    xff = request.headers.get("x-forwarded-for", "")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+def _check_rate_limit(ip: str) -> Tuple[bool, int]:
+    """Returns (allowed, retry_after_seconds)."""
+    now = time.monotonic()
+    with _proxy_lock:
+        bucket = _proxy_buckets[ip]
+        cutoff = now - PROXY_RATE_WINDOW
+        while bucket and bucket[0] < cutoff:
+            bucket.popleft()
+        if len(bucket) >= PROXY_RATE_LIMIT:
+            retry = int(PROXY_RATE_WINDOW - (now - bucket[0])) + 1
+            return False, max(retry, 1)
+        bucket.append(now)
+        return True, 0
 
 
 def _set(job_id: str, **fields):
@@ -59,9 +107,267 @@ def _worker(job_id: str, url: str):
              traceback=traceback.format_exc(), progress=0.0)
 
 
+# ============================================================================
+#  Folio discovery — read everything in JOBS_ROOT/ that has a blog.json
+# ============================================================================
+
+def _safe_job_id(s: str) -> str:
+    """Allow only the shape our generators emit: hex or job-<ts>-<rand>."""
+    return s if re.fullmatch(r"[A-Za-z0-9_\-]{4,64}", s or "") else ""
+
+
+def _read_folio(job_dir: Path) -> Optional[dict]:
+    """Read a stored folio's summary for the homepage gallery."""
+    blog_path = job_dir / "blog.json"
+    if not blog_path.exists():
+        return None
+    try:
+        blog = json.loads(blog_path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+    meta = blog.get("meta") or {}
+    video_id = meta.get("videoId") or meta.get("video_id") or ""
+    title = blog.get("title") or "Untitled folio"
+    subtitle = blog.get("subtitle") or ""
+    channel = meta.get("channel") or meta.get("uploader") or ""
+    duration = meta.get("durationSeconds") or meta.get("duration_seconds") or 0
+    yt_url = meta.get("url") or (f"https://www.youtube.com/watch?v={video_id}" if video_id else "")
+
+    # Cover thumbnail: YouTube hqdefault if we know the video id, else first screenshot.
+    cover = ""
+    if video_id:
+        cover = f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg"
+    else:
+        shots = _resolve_screenshots(job_dir.name, job_dir)
+        if shots:
+            cover = next(iter(shots.values()))
+
+    # mtime for sort order
+    try:
+        mtime = blog_path.stat().st_mtime
+    except OSError:
+        mtime = 0.0
+
+    duration_str = ""
+    if duration:
+        mins = max(1, int(round(float(duration) / 60)))
+        duration_str = f"{mins} min"
+
+    return {
+        "job_id": job_dir.name,
+        "title": title,
+        "subtitle": subtitle,
+        "channel": channel,
+        "duration_str": duration_str,
+        "url": f"/blog/{job_dir.name}",
+        "youtube_url": yt_url,
+        "cover": cover,
+        "video_id": video_id,
+        "mtime": mtime,
+    }
+
+
+_ROMAN_PAIRS = [
+    (1000, "M"), (900, "CM"), (500, "D"), (400, "CD"),
+    (100, "C"), (90, "XC"), (50, "L"), (40, "XL"),
+    (10, "X"), (9, "IX"), (5, "V"), (4, "IV"), (1, "I"),
+]
+
+
+def _to_roman(n: int) -> str:
+    if n <= 0:
+        return ""
+    out = []
+    for value, sym in _ROMAN_PAIRS:
+        while n >= value:
+            out.append(sym)
+            n -= value
+    return "".join(out)
+
+
+def _list_folios(limit: int = 60) -> list[dict]:
+    out: list[dict] = []
+    if not JOBS_ROOT.exists():
+        return out
+    for entry in JOBS_ROOT.iterdir():
+        if not entry.is_dir():
+            continue
+        f = _read_folio(entry)
+        if f:
+            out.append(f)
+    out.sort(key=lambda x: x["mtime"], reverse=True)
+    out = out[:limit]
+    # Number them I, II, III… in the order they're displayed (newest first).
+    for i, f in enumerate(out, start=1):
+        f["roman"] = _to_roman(i)
+    return out
+
+
+# ============================================================================
+#  Routes
+# ============================================================================
+
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
-    return templates.TemplateResponse(request, "index.html")
+    folios = _list_folios()
+    return templates.TemplateResponse(
+        request, "index.html", {"folios": folios},
+    )
+
+
+# ============================================================================
+#  Anthropic proxy — extension calls this so users don't need their own key.
+#  Body is forwarded verbatim to api.anthropic.com/v1/messages with the
+#  server's ANTHROPIC_API_KEY attached.
+# ============================================================================
+
+@app.post("/v1/proxy/messages")
+async def proxy_messages(request: Request):
+    server_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    if not server_key:
+        raise HTTPException(503, "Proxy is not configured (no ANTHROPIC_API_KEY on server).")
+
+    ip = _client_ip(request)
+    allowed, retry_after = _check_rate_limit(ip)
+    if not allowed:
+        return JSONResponse(
+            {"error": {"type": "rate_limit_error",
+                       "message": f"farzi.me proxy: too many requests, retry in {retry_after}s"}},
+            status_code=429,
+            headers={"retry-after": str(retry_after)},
+        )
+
+    try:
+        body = await request.body()
+    except Exception as e:
+        raise HTTPException(400, f"Could not read request body: {e}")
+
+    upstream_headers = {
+        "x-api-key": server_key,
+        "anthropic-version": request.headers.get("anthropic-version", "2023-06-01"),
+        "content-type": "application/json",
+    }
+    # Echo a couple of optional beta headers the caller may set.
+    for h in ("anthropic-beta",):
+        v = request.headers.get(h)
+        if v:
+            upstream_headers[h] = v
+
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=30.0)) as client:
+            r = await client.post(
+                "https://api.anthropic.com/v1/messages",
+                content=body,
+                headers=upstream_headers,
+            )
+    except httpx.TimeoutException:
+        return JSONResponse(
+            {"error": {"type": "timeout_error",
+                       "message": "Upstream Anthropic API timed out via farzi.me proxy."}},
+            status_code=504,
+        )
+    except httpx.HTTPError as e:
+        return JSONResponse(
+            {"error": {"type": "proxy_error", "message": f"Proxy network error: {e}"}},
+            status_code=502,
+        )
+
+    # Pass status + body through unchanged. Strip hop-by-hop headers.
+    return Response(
+        content=r.content,
+        status_code=r.status_code,
+        media_type=r.headers.get("content-type", "application/json"),
+    )
+
+
+# ============================================================================
+#  Folio ingestion — extension uploads its generated blog + frames here.
+#  We write blog.json + screenshots/tNNN.jpg so the existing /blog/{id}
+#  route serves the post and the homepage picks it up automatically.
+# ============================================================================
+
+_FRAME_TS_RE = re.compile(r"^t\d{1,5}$")
+
+
+def _persist_folio(payload: dict) -> str:
+    """Validate + write to disk. Returns the new job_id."""
+    blog = payload.get("blog")
+    if not isinstance(blog, dict) or not blog.get("title"):
+        raise HTTPException(400, "Missing or invalid 'blog' object.")
+
+    frames = payload.get("frames") or []
+    if not isinstance(frames, list):
+        raise HTTPException(400, "'frames' must be a list.")
+
+    # Allow client to suggest a job id but sanitize it.
+    raw_id = payload.get("job_id") or ""
+    job_id = _safe_job_id(raw_id) or f"ext-{int(time.time())}-{uuid.uuid4().hex[:8]}"
+
+    job_dir = JOBS_ROOT / job_id
+    shots_dir = job_dir / "screenshots"
+    shots_dir.mkdir(parents=True, exist_ok=True)
+
+    # Decode frames. Accept {timestamp, dataB64, mediaType?} or {timestamp, dataUrl}.
+    written = 0
+    for f in frames[:200]:  # hard cap
+        try:
+            ts = float(f.get("timestamp"))
+        except (TypeError, ValueError):
+            continue
+        b64 = f.get("dataB64") or ""
+        if not b64 and isinstance(f.get("dataUrl"), str):
+            m = re.match(r"^data:[^;]+;base64,(.*)$", f["dataUrl"])
+            if m:
+                b64 = m.group(1)
+        if not b64:
+            continue
+        try:
+            data = base64.b64decode(b64, validate=False)
+        except Exception:
+            continue
+        media = (f.get("mediaType") or "image/jpeg").lower()
+        ext = ".jpg" if "jpeg" in media or "jpg" in media else (".png" if "png" in media else ".jpg")
+        stem = f"t{int(round(ts)):03d}"
+        out_path = shots_dir / f"{stem}{ext}"
+        try:
+            out_path.write_bytes(data)
+            written += 1
+        except OSError:
+            continue
+
+    # Persist blog.json (overwrite if same job_id submitted twice).
+    (job_dir / "blog.json").write_text(
+        json.dumps(blog, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    return job_id
+
+
+@app.post("/v1/folios")
+async def upload_folio(request: Request):
+    ip = _client_ip(request)
+    allowed, retry_after = _check_rate_limit(ip)
+    if not allowed:
+        return JSONResponse(
+            {"error": f"too many requests, retry in {retry_after}s"},
+            status_code=429,
+            headers={"retry-after": str(retry_after)},
+        )
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(400, "Body must be JSON.")
+    job_id = _persist_folio(payload)
+    return JSONResponse({
+        "ok": True,
+        "job_id": job_id,
+        "url": f"/blog/{job_id}",
+    })
+
+
+@app.get("/v1/folios")
+def list_folios(limit: int = 60):
+    return JSONResponse({"folios": _list_folios(limit=max(1, min(limit, 200)))})
 
 
 @app.post("/process")
