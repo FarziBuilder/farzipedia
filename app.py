@@ -18,7 +18,6 @@ from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import (
     HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response,
-    StreamingResponse,
 )
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -240,66 +239,45 @@ async def proxy_messages(request: Request):
         )
 
     try:
-        body_bytes = await request.body()
-        body = json.loads(body_bytes)
+        body = await request.body()
     except Exception as e:
-        raise HTTPException(400, f"Could not parse request body: {e}")
-
-    # Force streaming on every request. Two wins:
-    #   1. Anthropic returns SSE chunks as it generates, keeping the
-    #      upstream connection (us → Anthropic) continuously alive — no
-    #      single 300s silent wait that httpx would time out on.
-    #   2. We pipe those chunks straight through to the extension, so
-    #      Cloudflare / Render's proxy don't treat the downstream
-    #      connection (us → extension) as idle and kill it either.
-    body["stream"] = True
+        raise HTTPException(400, f"Could not read request body: {e}")
 
     upstream_headers = {
         "x-api-key": server_key,
         "anthropic-version": request.headers.get("anthropic-version", "2023-06-01"),
         "content-type": "application/json",
     }
+    # Echo a couple of optional beta headers the caller may set.
     for h in ("anthropic-beta",):
         v = request.headers.get(h)
         if v:
             upstream_headers[h] = v
 
-    async def passthrough():
-        try:
-            async with httpx.AsyncClient(timeout=httpx.Timeout(600.0, connect=30.0)) as client:
-                async with client.stream(
-                    "POST",
-                    "https://api.anthropic.com/v1/messages",
-                    json=body,
-                    headers=upstream_headers,
-                ) as r:
-                    if r.status_code != 200:
-                        err_bytes = await r.aread()
-                        # Collapse to a single line so it fits in one SSE event.
-                        single = " ".join(err_bytes.decode("utf-8", "replace").split())
-                        yield f"event: error\ndata: {single}\n\n".encode()
-                        return
-                    async for chunk in r.aiter_bytes():
-                        if chunk:
-                            yield chunk
-        except httpx.TimeoutException:
-            yield (
-                b'event: error\ndata: {"type":"timeout_error",'
-                b'"message":"Upstream Anthropic API timed out via farzi.me proxy."}'
-                b'\n\n'
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(300.0, connect=30.0)) as client:
+            r = await client.post(
+                "https://api.anthropic.com/v1/messages",
+                content=body,
+                headers=upstream_headers,
             )
-        except httpx.HTTPError as e:
-            msg = json.dumps({"type": "proxy_error", "message": str(e)})
-            yield f"event: error\ndata: {msg}\n\n".encode()
+    except httpx.TimeoutException:
+        return JSONResponse(
+            {"error": {"type": "timeout_error",
+                       "message": "Upstream Anthropic API timed out via farzi.me proxy."}},
+            status_code=504,
+        )
+    except httpx.HTTPError as e:
+        return JSONResponse(
+            {"error": {"type": "proxy_error", "message": f"Proxy network error: {e}"}},
+            status_code=502,
+        )
 
-    return StreamingResponse(
-        passthrough(),
-        media_type="text/event-stream",
-        headers={
-            "cache-control": "no-cache, no-transform",
-            "x-accel-buffering": "no",  # disable proxy buffering on Cloudflare/nginx
-            "connection": "keep-alive",
-        },
+    # Pass status + body through unchanged. Strip hop-by-hop headers.
+    return Response(
+        content=r.content,
+        status_code=r.status_code,
+        media_type=r.headers.get("content-type", "application/json"),
     )
 
 
