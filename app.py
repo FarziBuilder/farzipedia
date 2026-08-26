@@ -4,6 +4,7 @@ import base64
 import json
 import os
 import re
+import shutil
 import threading
 import time
 import traceback
@@ -39,7 +40,7 @@ app.mount("/jobs", StaticFiles(directory=str(JOBS_ROOT)), name="jobs")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -205,14 +206,95 @@ def _list_folios(limit: int = 60) -> list[dict]:
 
 
 # ============================================================================
+#  Repos — named collections of folios.
+#
+#  Stored as a single JSON file next to the job dirs (same persistence story
+#  as the folios themselves):
+#    { "repos": {"<id>": {"name": ..., "created_at": ...}},
+#      "assignments": {"<job_id>": "<repo_id>"} }
+# ============================================================================
+
+REPOS_PATH = JOBS_ROOT / "repos.json"
+_REPOS_LOCK = threading.Lock()
+
+
+def _load_repos() -> dict:
+    try:
+        data = json.loads(REPOS_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        data = {}
+    if not isinstance(data, dict):
+        data = {}
+    data.setdefault("repos", {})
+    data.setdefault("assignments", {})
+    return data
+
+
+def _save_repos(data: dict) -> None:
+    tmp = REPOS_PATH.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp.replace(REPOS_PATH)
+
+
+def _ensure_repo(name: str) -> str:
+    """Return the id of the repo with this name, creating it if needed."""
+    name = (name or "").strip()[:120]
+    if not name:
+        raise HTTPException(400, "Repo name must not be empty.")
+    with _REPOS_LOCK:
+        data = _load_repos()
+        for rid, r in data["repos"].items():
+            if r.get("name", "").strip().lower() == name.lower():
+                return rid
+        rid = f"repo-{uuid.uuid4().hex[:10]}"
+        data["repos"][rid] = {"name": name, "created_at": time.time()}
+        _save_repos(data)
+        return rid
+
+
+def _assign_folio(job_id: str, repo_id: Optional[str]) -> None:
+    with _REPOS_LOCK:
+        data = _load_repos()
+        if repo_id is None:
+            data["assignments"].pop(job_id, None)
+        else:
+            if repo_id not in data["repos"]:
+                raise HTTPException(404, "Unknown repo.")
+            data["assignments"][job_id] = repo_id
+        _save_repos(data)
+
+
+def _require_admin(request: Request) -> None:
+    """Optional guard for destructive endpoints: if FARZI_ADMIN_TOKEN is set
+    in the environment, callers must send it as the x-farzi-admin header."""
+    token = os.environ.get("FARZI_ADMIN_TOKEN", "").strip()
+    if token and request.headers.get("x-farzi-admin", "") != token:
+        raise HTTPException(403, "Admin token required for this action.")
+
+
+# ============================================================================
 #  Routes
 # ============================================================================
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
-    folios = _list_folios()
+    folios = _list_folios(limit=200)
+    repo_data = _load_repos()
+    assignments = repo_data["assignments"]
+
+    shelves = []
+    for rid, r in sorted(repo_data["repos"].items(),
+                         key=lambda kv: kv[1].get("created_at", 0), reverse=True):
+        members = [f for f in folios if assignments.get(f["job_id"]) == rid]
+        shelves.append({"id": rid, "name": r.get("name", "Unnamed repo"),
+                        "folios": members, "count": len(members)})
+
+    unfiled = [f for f in folios if assignments.get(f["job_id"]) not in repo_data["repos"]]
+
     return templates.TemplateResponse(
-        request, "index.html", {"folios": folios},
+        request, "index.html",
+        {"folios": folios, "shelves": shelves, "unfiled": unfiled,
+         "repos": [{"id": s["id"], "name": s["name"]} for s in shelves]},
     )
 
 
@@ -365,16 +447,104 @@ async def upload_folio(request: Request):
     except Exception:
         raise HTTPException(400, "Body must be JSON.")
     job_id = _persist_folio(payload)
+
+    # Optional: file the new folio straight into a repo (created on demand).
+    repo_id = None
+    repo_name = (payload.get("repo_name") or "").strip()
+    if repo_name:
+        try:
+            repo_id = _ensure_repo(repo_name)
+            _assign_folio(job_id, repo_id)
+        except HTTPException:
+            repo_id = None  # bad repo name never blocks the upload itself
+
     return JSONResponse({
         "ok": True,
         "job_id": job_id,
         "url": f"/blog/{job_id}",
+        "repo_id": repo_id,
     })
 
 
 @app.get("/v1/folios")
 def list_folios(limit: int = 60):
     return JSONResponse({"folios": _list_folios(limit=max(1, min(limit, 200)))})
+
+
+@app.delete("/v1/folios/{job_id}")
+def delete_folio(request: Request, job_id: str):
+    _require_admin(request)
+    job_id = _safe_job_id(job_id)
+    if not job_id:
+        raise HTTPException(400, "Bad folio id.")
+    job_dir = (JOBS_ROOT / job_id).resolve()
+    if job_dir.parent != JOBS_ROOT.resolve() or not job_dir.is_dir():
+        raise HTTPException(404, "No such folio.")
+    shutil.rmtree(job_dir, ignore_errors=True)
+    _assign_folio(job_id, None)
+    with JOBS_LOCK:
+        JOBS.pop(job_id, None)
+    return JSONResponse({"ok": True, "deleted": job_id})
+
+
+@app.get("/v1/repos")
+def get_repos():
+    data = _load_repos()
+    counts: dict[str, int] = defaultdict(int)
+    for rid in data["assignments"].values():
+        counts[rid] += 1
+    repos = [
+        {"id": rid, "name": r.get("name", ""), "count": counts.get(rid, 0),
+         "created_at": r.get("created_at", 0)}
+        for rid, r in data["repos"].items()
+    ]
+    repos.sort(key=lambda r: r["created_at"], reverse=True)
+    return JSONResponse({"repos": repos})
+
+
+@app.post("/v1/repos")
+async def create_repo(request: Request):
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(400, "Body must be JSON.")
+    rid = _ensure_repo(payload.get("name") or "")
+    data = _load_repos()
+    return JSONResponse({"ok": True, "id": rid, "name": data["repos"][rid]["name"]})
+
+
+@app.delete("/v1/repos/{repo_id}")
+def delete_repo(request: Request, repo_id: str):
+    """Delete a repo. Its folios are kept and become unfiled."""
+    _require_admin(request)
+    with _REPOS_LOCK:
+        data = _load_repos()
+        if repo_id not in data["repos"]:
+            raise HTTPException(404, "Unknown repo.")
+        del data["repos"][repo_id]
+        data["assignments"] = {j: r for j, r in data["assignments"].items() if r != repo_id}
+        _save_repos(data)
+    return JSONResponse({"ok": True, "deleted": repo_id})
+
+
+@app.post("/v1/folios/{job_id}/repo")
+async def set_folio_repo(request: Request, job_id: str):
+    """Move a folio into a repo ({'repo_id': ...} or {'repo_name': ...}),
+    or unfile it ({'repo_id': null})."""
+    job_id = _safe_job_id(job_id)
+    if not job_id or not (JOBS_ROOT / job_id / "blog.json").exists():
+        raise HTTPException(404, "No such folio.")
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(400, "Body must be JSON.")
+
+    if payload.get("repo_name"):
+        repo_id = _ensure_repo(payload["repo_name"])
+    else:
+        repo_id = payload.get("repo_id")  # may be None → unfile
+    _assign_folio(job_id, repo_id)
+    return JSONResponse({"ok": True, "job_id": job_id, "repo_id": repo_id})
 
 
 @app.post("/process")
