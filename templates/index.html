@@ -47,19 +47,19 @@
         </div>
       </div>
     </a>
-    <div class="mt-2 flex items-center justify-between gap-2 text-xs font-codex">
-      <select onchange="farziMove('{{ f.job_id }}', this)"
-              class="flex-1 min-w-0 bg-paper-0/70 border border-sepia-500/30 rounded-sm px-2 py-1 text-ink-700">
-        <option value="" {% if not current_repo %}selected{% endif %}>— unfiled —</option>
+    <div class="folio-controls">
+      <select onchange="farziMove('{{ f.job_id }}', this)" class="folio-shelf-select"
+              title="File this folio within a scrinium">
+        <option value="" {% if not current_repo %}selected{% endif %}>— unbound —</option>
         {% for r in repos %}
           <option value="{{ r.id }}" {% if current_repo == r.id %}selected{% endif %}>{{ r.name }}</option>
         {% endfor %}
-        <option value="__new__">➕ new repo…</option>
+        <option value="__new__">✦ a new scrinium…</option>
       </select>
       {# Single-quoted attribute on purpose: tojson escapes ' but not " #}
       <button onclick='farziDelete("{{ f.job_id }}", {{ f.title | tojson }})'
-              title="Delete this folio forever"
-              class="px-2 py-1 border border-accent-500/40 text-accent-500 rounded-sm hover:bg-accent-500 hover:text-paper-0 transition-colors">
+              title="Consign this folio to the flames — removed forever"
+              class="folio-burn">
         ✕ burn
       </button>
     </div>
@@ -224,29 +224,38 @@
         <div class="ornament-rule mt-4 max-w-lg mx-auto"><span class="fleuron">❦</span></div>
       </div>
 
-      <!-- New-repo control -->
-      <div class="text-center mb-8">
-        <button onclick="farziNewRepo()"
-                class="font-codex text-sm px-5 py-2 border border-sepia-500/40 rounded-sm text-ink-700 bg-paper-0/60 hover:border-accent-500 hover:text-accent-500 transition-colors">
-          ➕ Found a new repo
+      <!-- Commission a scrinium -->
+      <div class="text-center mb-12">
+        <button onclick="farziNewRepo()" class="scrinium-found-btn">
+          ❧ &nbsp;Commission a Scrinium&nbsp; ❧
         </button>
+        <p class="font-codex italic text-sepia-500 text-xs mt-3">
+          a scrinium — the Roman chest wherein kindred folios are gathered
+        </p>
       </div>
 
       {% if folios or shelves %}
-        <!-- =============== Repo shelves =============== -->
+        <!-- =============== Scrinia =============== -->
         {% for shelf in shelves %}
-          <div class="mb-14" id="repo-{{ shelf.id }}">
-            <div class="flex items-end justify-between gap-3 mb-5 border-b border-sepia-500/30 pb-2">
-              <h3 class="font-inscription text-ink-900 text-xl md:text-2xl tracking-wide">
-                📚 {{ shelf.name }}
-                <span class="font-codex italic text-sepia-500 text-sm ml-2">{{ shelf.count }} folio{{ '' if shelf.count == 1 else 's' }}</span>
+          <div class="mb-16" id="repo-{{ shelf.id }}">
+            <div class="text-center mb-7">
+              <p class="font-inscription tracking-codex text-sepia-500 text-xs mb-1">— SCRINIVM —</p>
+              <h3 class="font-roman text-ink-900 text-2xl md:text-3xl font-semibold leading-tight">
+                {{ shelf.name }}
               </h3>
-              {# Single-quoted attribute on purpose: tojson escapes ' but not " #}
-              <button onclick='farziDeleteRepo("{{ shelf.id }}", {{ shelf.name | tojson }})'
-                      title="Dissolve this repo (its folios become unfiled)"
-                      class="font-codex text-xs text-sepia-500 hover:text-accent-500 underline decoration-dotted shrink-0">
-                dissolve repo
-              </button>
+              <p class="font-codex italic text-sepia-500 text-sm mt-1">
+                {% if shelf.count %}
+                  folios within: <span class="font-inscription not-italic tracking-codex">{{ shelf.roman_count }}</span>
+                {% else %}
+                  yet empty
+                {% endif %}
+                <span class="mx-1 opacity-60">·</span>
+                {# Single-quoted attribute on purpose: tojson escapes ' but not " #}
+                <button onclick='farziDeleteRepo("{{ shelf.id }}", {{ shelf.name | tojson }})'
+                        title="Dissolve this scrinium — its folios return to the loose pile"
+                        class="scrinium-dissolve">dissolve</button>
+              </p>
+              <div class="ornament-rule mt-3 max-w-xs mx-auto"><span class="fleuron">❧</span></div>
             </div>
             {% if shelf.folios %}
               <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-7 md:gap-9">
@@ -255,22 +264,24 @@
                 {% endfor %}
               </div>
             {% else %}
-              <p class="font-codex italic text-sepia-500 text-sm">
-                An empty shelf — file folios into it with the selector on any card.
+              <p class="font-codex italic text-sepia-500 text-sm text-center">
+                This scrinium lies empty — file folios into it from any card below.
               </p>
             {% endif %}
           </div>
         {% endfor %}
 
-        <!-- =============== Unfiled folios =============== -->
+        <!-- =============== Loose folios (not yet in a scrinium) =============== -->
         {% if unfiled %}
           <div class="mb-6">
             {% if shelves %}
-              <div class="flex items-end justify-between gap-3 mb-5 border-b border-sepia-500/30 pb-2">
-                <h3 class="font-inscription text-ink-900 text-xl md:text-2xl tracking-wide">
-                  Unfiled folios
-                  <span class="font-codex italic text-sepia-500 text-sm ml-2">{{ unfiled | length }}</span>
+              <div class="text-center mb-7">
+                <p class="font-inscription tracking-codex text-sepia-500 text-xs mb-1">— FOLIA SOLVTA —</p>
+                <h3 class="font-roman text-ink-900 text-2xl md:text-3xl font-semibold leading-tight">
+                  Loose folios
                 </h3>
+                <p class="font-codex italic text-sepia-500 text-sm mt-1">awaiting a scrinium</p>
+                <div class="ornament-rule mt-3 max-w-xs mx-auto"><span class="fleuron">❦</span></div>
               </div>
             {% endif %}
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-7 md:gap-9">
@@ -313,7 +324,74 @@
   </footer>
 </main>
 
+<!-- =============== Codex dialog (replaces prompt/confirm) =============== -->
+<dialog id="codex-dialog" class="codex-dialog">
+  <p class="cd-eyebrow" id="cd-eyebrow">— SCRINIVM —</p>
+  <h4 class="cd-title" id="cd-title"></h4>
+  <p class="cd-msg" id="cd-msg"></p>
+  <input id="cd-input" class="cd-input" type="text" maxlength="120"
+         autocomplete="off" spellcheck="false">
+  <div class="cd-row">
+    <button id="cd-cancel" class="cd-cancel" type="button">leave be</button>
+    <button id="cd-confirm" class="cd-confirm" type="button"></button>
+  </div>
+</dialog>
+
 <script>
+  // ---------- themed dialog ----------
+  const _cd = document.getElementById('codex-dialog');
+  const _cdEl = (id) => document.getElementById(id);
+
+  /**
+   * codexDialog({eyebrow, title, message, input, placeholder, confirmLabel, danger})
+   * → resolves with the input string (input mode), true (confirm mode), or null (cancelled).
+   */
+  function codexDialog(opts) {
+    return new Promise((resolve) => {
+      _cdEl('cd-eyebrow').textContent = opts.eyebrow || '— SCRINIVM —';
+      _cdEl('cd-title').textContent = opts.title || '';
+      _cdEl('cd-msg').textContent = opts.message || '';
+      _cdEl('cd-msg').style.display = opts.message ? '' : 'none';
+      const input = _cdEl('cd-input');
+      input.style.display = opts.input ? '' : 'none';
+      input.value = '';
+      input.placeholder = opts.placeholder || '';
+      const confirmBtn = _cdEl('cd-confirm');
+      confirmBtn.textContent = opts.confirmLabel || 'so be it';
+      confirmBtn.classList.toggle('cd-danger', !!opts.danger);
+
+      const done = (val) => {
+        _cd.close();
+        confirmBtn.onclick = null;
+        _cdEl('cd-cancel').onclick = null;
+        input.onkeydown = null;
+        _cd.oncancel = null;
+        resolve(val);
+      };
+      confirmBtn.onclick = () => {
+        if (opts.input) {
+          const v = input.value.trim();
+          if (!v) { input.focus(); return; }
+          done(v);
+        } else done(true);
+      };
+      _cdEl('cd-cancel').onclick = () => done(null);
+      _cd.oncancel = (e) => { e.preventDefault(); done(null); };
+      input.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); confirmBtn.onclick(); } };
+
+      _cd.showModal();
+      if (opts.input) input.focus();
+    });
+  }
+
+  function codexLament(message) {
+    return codexDialog({
+      eyebrow: '— ALAS —', title: 'A misfortune', message,
+      confirmLabel: 'so be it',
+    });
+  }
+
+  // ---------- api ----------
   async function farziApi(method, path, body) {
     const res = await fetch(path, {
       method,
@@ -328,54 +406,78 @@
     return res.json();
   }
 
+  // ---------- actions ----------
   async function farziMove(jobId, selectEl) {
     const v = selectEl.value;
+    const revert = () => { selectEl.value = selectEl.dataset.prev || ''; };
     try {
       if (v === '__new__') {
-        const name = prompt('Name for the new repo:');
-        if (!name || !name.trim()) { selectEl.value = selectEl.dataset.prev || ''; return; }
-        await farziApi('POST', `/v1/folios/${jobId}/repo`, { repo_name: name.trim() });
+        const name = await codexDialog({
+          title: 'Commission a scrinium',
+          message: 'Name the chest into which this folio shall be filed.',
+          input: true, placeholder: 'e.g. Essence of Linear Algebra',
+          confirmLabel: 'inscribe',
+        });
+        if (!name) { revert(); return; }
+        await farziApi('POST', `/v1/folios/${jobId}/repo`, { repo_name: name });
       } else {
         await farziApi('POST', `/v1/folios/${jobId}/repo`, { repo_id: v || null });
       }
       location.reload();
     } catch (e) {
-      alert('Could not move the folio: ' + e.message);
+      revert();
+      await codexLament('The folio could not be re-filed: ' + e.message);
     }
   }
 
   async function farziDelete(jobId, title) {
-    if (!confirm(`Burn "${title}" forever? This removes the folio and its images from farzi.me.`)) return;
+    const yes = await codexDialog({
+      eyebrow: '— IGNIS —',
+      title: 'Burn this folio?',
+      message: `"${title}" shall be cast into the flames — struck from the library, forever.`,
+      confirmLabel: 'burn it', danger: true,
+    });
+    if (!yes) return;
     try {
       await farziApi('DELETE', `/v1/folios/${jobId}`);
       location.reload();
     } catch (e) {
-      alert('Could not delete the folio: ' + e.message);
+      await codexLament('The folio resisted the flames: ' + e.message);
     }
   }
 
   async function farziDeleteRepo(repoId, name) {
-    if (!confirm(`Dissolve the repo "${name}"? Its folios are kept and become unfiled.`)) return;
+    const yes = await codexDialog({
+      title: 'Dissolve this scrinium?',
+      message: `"${name}" shall be dissolved. Its folios are spared and return to the loose pile.`,
+      confirmLabel: 'dissolve', danger: true,
+    });
+    if (!yes) return;
     try {
       await farziApi('DELETE', `/v1/repos/${repoId}`);
       location.reload();
     } catch (e) {
-      alert('Could not dissolve the repo: ' + e.message);
+      await codexLament('The scrinium could not be dissolved: ' + e.message);
     }
   }
 
   async function farziNewRepo() {
-    const name = prompt('Name for the new repo:');
-    if (!name || !name.trim()) return;
+    const name = await codexDialog({
+      title: 'Commission a scrinium',
+      message: 'Name the chest wherein kindred folios shall be gathered.',
+      input: true, placeholder: 'e.g. Essence of Linear Algebra',
+      confirmLabel: 'inscribe',
+    });
+    if (!name) return;
     try {
-      await farziApi('POST', '/v1/repos', { name: name.trim() });
+      await farziApi('POST', '/v1/repos', { name });
       location.reload();
     } catch (e) {
-      alert('Could not create the repo: ' + e.message);
+      await codexLament('The scrinium could not be commissioned: ' + e.message);
     }
   }
 
-  // Remember each select's starting value so a cancelled "new repo…" can revert.
+  // Remember each select's starting value so a cancelled "new scrinium…" can revert.
   document.querySelectorAll('select[onchange^="farziMove"]').forEach(s => { s.dataset.prev = s.value; });
 </script>
 {% endblock %}

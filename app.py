@@ -289,8 +289,9 @@ def index(request: Request):
     for rid, r in sorted(repo_data["repos"].items(),
                          key=lambda kv: kv[1].get("created_at", 0), reverse=True):
         members = [f for f in folios if assignments.get(f["job_id"]) == rid]
-        shelves.append({"id": rid, "name": r.get("name", "Unnamed repo"),
-                        "folios": members, "count": len(members)})
+        shelves.append({"id": rid, "name": r.get("name", "Unnamed scrinium"),
+                        "folios": members, "count": len(members),
+                        "roman_count": _to_roman(len(members))})
 
     unfiled = [f for f in folios if assignments.get(f["job_id"]) not in repo_data["repos"]]
 
