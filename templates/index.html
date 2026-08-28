@@ -56,7 +56,8 @@
         {% endfor %}
         <option value="__new__">➕ new repo…</option>
       </select>
-      <button onclick="farziDelete('{{ f.job_id }}', {{ f.title | tojson }})"
+      {# Single-quoted attribute on purpose: tojson escapes ' but not " #}
+      <button onclick='farziDelete("{{ f.job_id }}", {{ f.title | tojson }})'
               title="Delete this folio forever"
               class="px-2 py-1 border border-accent-500/40 text-accent-500 rounded-sm hover:bg-accent-500 hover:text-paper-0 transition-colors">
         ✕ burn
@@ -231,7 +232,7 @@
         </button>
       </div>
 
-      {% if folios %}
+      {% if folios or shelves %}
         <!-- =============== Repo shelves =============== -->
         {% for shelf in shelves %}
           <div class="mb-14" id="repo-{{ shelf.id }}">
@@ -240,7 +241,8 @@
                 📚 {{ shelf.name }}
                 <span class="font-codex italic text-sepia-500 text-sm ml-2">{{ shelf.count }} folio{{ '' if shelf.count == 1 else 's' }}</span>
               </h3>
-              <button onclick="farziDeleteRepo('{{ shelf.id }}', {{ shelf.name | tojson }})"
+              {# Single-quoted attribute on purpose: tojson escapes ' but not " #}
+              <button onclick='farziDeleteRepo("{{ shelf.id }}", {{ shelf.name | tojson }})'
                       title="Dissolve this repo (its folios become unfiled)"
                       class="font-codex text-xs text-sepia-500 hover:text-accent-500 underline decoration-dotted shrink-0">
                 dissolve repo

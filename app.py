@@ -2,6 +2,7 @@
 
 import base64
 import json
+import math
 import os
 import re
 import shutil
@@ -236,8 +237,9 @@ def _save_repos(data: dict) -> None:
     tmp.replace(REPOS_PATH)
 
 
-def _ensure_repo(name: str) -> str:
-    """Return the id of the repo with this name, creating it if needed."""
+def _ensure_repo(name: str) -> Tuple[str, str]:
+    """Return (id, canonical_name) of the repo with this name, creating it
+    if needed. Never re-read after this — the tuple is the source of truth."""
     name = (name or "").strip()[:120]
     if not name:
         raise HTTPException(400, "Repo name must not be empty.")
@@ -245,11 +247,11 @@ def _ensure_repo(name: str) -> str:
         data = _load_repos()
         for rid, r in data["repos"].items():
             if r.get("name", "").strip().lower() == name.lower():
-                return rid
+                return rid, r.get("name", name)
         rid = f"repo-{uuid.uuid4().hex[:10]}"
         data["repos"][rid] = {"name": name, "created_at": time.time()}
         _save_repos(data)
-        return rid
+        return rid, name
 
 
 def _assign_folio(job_id: str, repo_id: Optional[str]) -> None:
@@ -279,7 +281,8 @@ def _require_admin(request: Request) -> None:
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
     folios = _list_folios(limit=200)
-    repo_data = _load_repos()
+    with _REPOS_LOCK:
+        repo_data = _load_repos()
     assignments = repo_data["assignments"]
 
     shelves = []
@@ -389,9 +392,13 @@ def _persist_folio(payload: dict) -> str:
     if not isinstance(frames, list):
         raise HTTPException(400, "'frames' must be a list.")
 
-    # Allow client to suggest a job id but sanitize it.
+    # Allow client to suggest a job id but sanitize it — and never let a
+    # suggested id overwrite an existing folio (that would be an
+    # unauthenticated replace of someone else's post).
     raw_id = payload.get("job_id") or ""
     job_id = _safe_job_id(raw_id) or f"ext-{int(time.time())}-{uuid.uuid4().hex[:8]}"
+    if (JOBS_ROOT / job_id / "blog.json").exists():
+        job_id = f"ext-{int(time.time())}-{uuid.uuid4().hex[:8]}"
 
     job_dir = JOBS_ROOT / job_id
     shots_dir = job_dir / "screenshots"
@@ -404,6 +411,8 @@ def _persist_folio(payload: dict) -> str:
             ts = float(f.get("timestamp"))
         except (TypeError, ValueError):
             continue
+        if not math.isfinite(ts):
+            continue  # json.loads accepts NaN/Infinity literals
         b64 = f.get("dataB64") or ""
         if not b64 and isinstance(f.get("dataUrl"), str):
             m = re.match(r"^data:[^;]+;base64,(.*)$", f["dataUrl"])
@@ -453,7 +462,7 @@ async def upload_folio(request: Request):
     repo_name = (payload.get("repo_name") or "").strip()
     if repo_name:
         try:
-            repo_id = _ensure_repo(repo_name)
+            repo_id, _ = _ensure_repo(repo_name)
             _assign_folio(job_id, repo_id)
         except HTTPException:
             repo_id = None  # bad repo name never blocks the upload itself
@@ -489,7 +498,8 @@ def delete_folio(request: Request, job_id: str):
 
 @app.get("/v1/repos")
 def get_repos():
-    data = _load_repos()
+    with _REPOS_LOCK:
+        data = _load_repos()
     counts: dict[str, int] = defaultdict(int)
     for rid in data["assignments"].values():
         counts[rid] += 1
@@ -508,9 +518,8 @@ async def create_repo(request: Request):
         payload = await request.json()
     except Exception:
         raise HTTPException(400, "Body must be JSON.")
-    rid = _ensure_repo(payload.get("name") or "")
-    data = _load_repos()
-    return JSONResponse({"ok": True, "id": rid, "name": data["repos"][rid]["name"]})
+    rid, canonical = _ensure_repo(payload.get("name") or "")
+    return JSONResponse({"ok": True, "id": rid, "name": canonical})
 
 
 @app.delete("/v1/repos/{repo_id}")
@@ -540,7 +549,7 @@ async def set_folio_repo(request: Request, job_id: str):
         raise HTTPException(400, "Body must be JSON.")
 
     if payload.get("repo_name"):
-        repo_id = _ensure_repo(payload["repo_name"])
+        repo_id, _ = _ensure_repo(payload["repo_name"])
     else:
         repo_id = payload.get("repo_id")  # may be None → unfile
     _assign_folio(job_id, repo_id)
