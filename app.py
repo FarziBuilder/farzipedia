@@ -285,6 +285,12 @@ def index(request: Request):
         repo_data = _load_repos()
     assignments = repo_data["assignments"]
 
+    # Annotate each folio with the tome it lives in (None = unbound), so the
+    # compendium grid can render every card with the right selector state.
+    for f in folios:
+        rid = assignments.get(f["job_id"])
+        f["repo_id"] = rid if rid in repo_data["repos"] else None
+
     shelves = []
     for rid, r in sorted(repo_data["repos"].items(),
                          key=lambda kv: kv[1].get("created_at", 0), reverse=True):
@@ -293,7 +299,7 @@ def index(request: Request):
                         "folios": members, "count": len(members),
                         "roman_count": _to_roman(len(members))})
 
-    unfiled = [f for f in folios if assignments.get(f["job_id"]) not in repo_data["repos"]]
+    unfiled = [f for f in folios if not f["repo_id"]]
 
     return templates.TemplateResponse(
         request, "index.html",

@@ -244,9 +244,18 @@
       </div>
 
       {% if folios or shelves %}
-        <!-- =============== Tomes =============== -->
+        <!-- =============== Compendium — everything, together =============== -->
+        <div id="compendium-section">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-7 md:gap-9">
+            {% for f in folios %}
+              {{ folio_card(f, repos, f.repo_id) }}
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- =============== Tomes view: grouped shelves =============== -->
         {% for shelf in shelves %}
-          <div class="mb-16 tome-shelf" id="repo-{{ shelf.id }}">
+          <div class="mb-16 tome-shelf" id="repo-{{ shelf.id }}" style="display:none">
             <div class="text-center mb-7">
               <p class="font-inscription tracking-codex text-sepia-500 text-xs mb-1">— TOMVS —</p>
               <h3 class="font-roman text-ink-900 text-2xl md:text-3xl font-semibold leading-tight">
@@ -285,9 +294,9 @@
           </p>
         {% endif %}
 
-        <!-- =============== Folios (not bound into a tome) =============== -->
+        <!-- =============== Folios view: not bound into a tome =============== -->
         {% if unfiled %}
-          <div class="mb-6" id="folios-section">
+          <div class="mb-6" id="folios-section" style="display:none">
             <div class="text-center mb-7">
               <p class="font-inscription tracking-codex text-sepia-500 text-xs mb-1">— FOLIA —</p>
               <h3 class="font-roman text-ink-900 text-2xl md:text-3xl font-semibold leading-tight">
@@ -498,8 +507,9 @@
     document.querySelectorAll('.codex-tab').forEach(b =>
       b.classList.toggle('active', b.dataset.view === v));
     const show = (el, on) => { if (el) el.style.display = on ? '' : 'none'; };
-    document.querySelectorAll('.tome-shelf').forEach(el => show(el, v !== 'folios'));
-    show(document.getElementById('folios-section'), v !== 'tomes');
+    show(document.getElementById('compendium-section'), v === 'compendium');
+    document.querySelectorAll('.tome-shelf').forEach(el => show(el, v === 'tomes'));
+    show(document.getElementById('folios-section'), v === 'folios');
     show(document.getElementById('tomes-empty'), v === 'tomes');
     show(document.getElementById('folios-empty'), v === 'folios');
   }
