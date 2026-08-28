@@ -224,7 +224,17 @@
         <div class="ornament-rule mt-4 max-w-lg mx-auto"><span class="fleuron">❦</span></div>
       </div>
 
-      <!-- =============== View switcher =============== -->
+      <!-- Commission a tome -->
+      <div class="text-center mb-10" id="commission-block">
+        <button onclick="farziNewRepo()" class="tome-found-btn">
+          ❧ &nbsp;Commission a Tome&nbsp; ❧
+        </button>
+        <p class="font-codex italic text-sepia-500 text-xs mt-3">
+          a tome — a bound volume gathering kindred folios
+        </p>
+      </div>
+
+      <!-- =============== View switcher (Compendium shows all, by default) =============== -->
       <div class="codex-tabs" role="tablist">
         <button type="button" class="codex-tab active" data-view="compendium" onclick="setView('compendium')">Compendium</button>
         <span class="codex-tab-sep" aria-hidden="true">❦</span>
@@ -234,16 +244,6 @@
       </div>
 
       {% if folios or shelves %}
-        <!-- Commission a tome (hidden on the Folios view) -->
-        <div class="text-center mb-12" id="commission-block">
-          <button onclick="farziNewRepo()" class="tome-found-btn">
-            ❧ &nbsp;Commission a Tome&nbsp; ❧
-          </button>
-          <p class="font-codex italic text-sepia-500 text-xs mt-3">
-            a tome — a bound volume gathering kindred folios
-          </p>
-        </div>
-
         <!-- =============== Tomes =============== -->
         {% for shelf in shelves %}
           <div class="mb-16 tome-shelf" id="repo-{{ shelf.id }}">
@@ -499,7 +499,6 @@
       b.classList.toggle('active', b.dataset.view === v));
     const show = (el, on) => { if (el) el.style.display = on ? '' : 'none'; };
     document.querySelectorAll('.tome-shelf').forEach(el => show(el, v !== 'folios'));
-    show(document.getElementById('commission-block'), v !== 'folios');
     show(document.getElementById('folios-section'), v !== 'tomes');
     show(document.getElementById('tomes-empty'), v === 'tomes');
     show(document.getElementById('folios-empty'), v === 'folios');
