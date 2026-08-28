@@ -289,7 +289,7 @@ def index(request: Request):
     for rid, r in sorted(repo_data["repos"].items(),
                          key=lambda kv: kv[1].get("created_at", 0), reverse=True):
         members = [f for f in folios if assignments.get(f["job_id"]) == rid]
-        shelves.append({"id": rid, "name": r.get("name", "Unnamed scrinium"),
+        shelves.append({"id": rid, "name": r.get("name", "Unnamed tome"),
                         "folios": members, "count": len(members),
                         "roman_count": _to_roman(len(members))})
 

@@ -49,12 +49,12 @@
     </a>
     <div class="folio-controls">
       <select onchange="farziMove('{{ f.job_id }}', this)" class="folio-shelf-select"
-              title="File this folio within a scrinium">
+              title="Bind this folio into a tome">
         <option value="" {% if not current_repo %}selected{% endif %}>— unbound —</option>
         {% for r in repos %}
           <option value="{{ r.id }}" {% if current_repo == r.id %}selected{% endif %}>{{ r.name }}</option>
         {% endfor %}
-        <option value="__new__">✦ a new scrinium…</option>
+        <option value="__new__">✦ a new tome…</option>
       </select>
       {# Single-quoted attribute on purpose: tojson escapes ' but not " #}
       <button onclick='farziDelete("{{ f.job_id }}", {{ f.title | tojson }})'
@@ -224,22 +224,31 @@
         <div class="ornament-rule mt-4 max-w-lg mx-auto"><span class="fleuron">❦</span></div>
       </div>
 
-      <!-- Commission a scrinium -->
-      <div class="text-center mb-12">
-        <button onclick="farziNewRepo()" class="scrinium-found-btn">
-          ❧ &nbsp;Commission a Scrinium&nbsp; ❧
-        </button>
-        <p class="font-codex italic text-sepia-500 text-xs mt-3">
-          a scrinium — the Roman chest wherein kindred folios are gathered
-        </p>
+      <!-- =============== View switcher =============== -->
+      <div class="codex-tabs" role="tablist">
+        <button type="button" class="codex-tab active" data-view="compendium" onclick="setView('compendium')">Compendium</button>
+        <span class="codex-tab-sep" aria-hidden="true">❦</span>
+        <button type="button" class="codex-tab" data-view="tomes" onclick="setView('tomes')">Tomes</button>
+        <span class="codex-tab-sep" aria-hidden="true">❦</span>
+        <button type="button" class="codex-tab" data-view="folios" onclick="setView('folios')">Folios</button>
       </div>
 
       {% if folios or shelves %}
-        <!-- =============== Scrinia =============== -->
+        <!-- Commission a tome (hidden on the Folios view) -->
+        <div class="text-center mb-12" id="commission-block">
+          <button onclick="farziNewRepo()" class="tome-found-btn">
+            ❧ &nbsp;Commission a Tome&nbsp; ❧
+          </button>
+          <p class="font-codex italic text-sepia-500 text-xs mt-3">
+            a tome — a bound volume gathering kindred folios
+          </p>
+        </div>
+
+        <!-- =============== Tomes =============== -->
         {% for shelf in shelves %}
-          <div class="mb-16" id="repo-{{ shelf.id }}">
+          <div class="mb-16 tome-shelf" id="repo-{{ shelf.id }}">
             <div class="text-center mb-7">
-              <p class="font-inscription tracking-codex text-sepia-500 text-xs mb-1">— SCRINIVM —</p>
+              <p class="font-inscription tracking-codex text-sepia-500 text-xs mb-1">— TOMVS —</p>
               <h3 class="font-roman text-ink-900 text-2xl md:text-3xl font-semibold leading-tight">
                 {{ shelf.name }}
               </h3>
@@ -252,8 +261,8 @@
                 <span class="mx-1 opacity-60">·</span>
                 {# Single-quoted attribute on purpose: tojson escapes ' but not " #}
                 <button onclick='farziDeleteRepo("{{ shelf.id }}", {{ shelf.name | tojson }})'
-                        title="Dissolve this scrinium — its folios return to the loose pile"
-                        class="scrinium-dissolve">dissolve</button>
+                        title="Dissolve this tome — its folios stand alone once more"
+                        class="tome-dissolve">dissolve</button>
               </p>
               <div class="ornament-rule mt-3 max-w-xs mx-auto"><span class="fleuron">❧</span></div>
             </div>
@@ -265,31 +274,38 @@
               </div>
             {% else %}
               <p class="font-codex italic text-sepia-500 text-sm text-center">
-                This scrinium lies empty — file folios into it from any card below.
+                This tome lies empty — file folios into it from any card.
               </p>
             {% endif %}
           </div>
         {% endfor %}
+        {% if not shelves %}
+          <p id="tomes-empty" class="font-codex italic text-sepia-500 text-base text-center mb-12" style="display:none">
+            No tomes have yet been commissioned.
+          </p>
+        {% endif %}
 
-        <!-- =============== Loose folios (not yet in a scrinium) =============== -->
+        <!-- =============== Folios (not bound into a tome) =============== -->
         {% if unfiled %}
-          <div class="mb-6">
-            {% if shelves %}
-              <div class="text-center mb-7">
-                <p class="font-inscription tracking-codex text-sepia-500 text-xs mb-1">— FOLIA SOLVTA —</p>
-                <h3 class="font-roman text-ink-900 text-2xl md:text-3xl font-semibold leading-tight">
-                  Loose folios
-                </h3>
-                <p class="font-codex italic text-sepia-500 text-sm mt-1">awaiting a scrinium</p>
-                <div class="ornament-rule mt-3 max-w-xs mx-auto"><span class="fleuron">❦</span></div>
-              </div>
-            {% endif %}
+          <div class="mb-6" id="folios-section">
+            <div class="text-center mb-7">
+              <p class="font-inscription tracking-codex text-sepia-500 text-xs mb-1">— FOLIA —</p>
+              <h3 class="font-roman text-ink-900 text-2xl md:text-3xl font-semibold leading-tight">
+                Folios
+              </h3>
+              <p class="font-codex italic text-sepia-500 text-sm mt-1">not yet bound within a tome</p>
+              <div class="ornament-rule mt-3 max-w-xs mx-auto"><span class="fleuron">❦</span></div>
+            </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-7 md:gap-9">
               {% for f in unfiled %}
                 {{ folio_card(f, repos, none) }}
               {% endfor %}
             </div>
           </div>
+        {% else %}
+          <p id="folios-empty" class="font-codex italic text-sepia-500 text-base text-center" style="display:none">
+            Every folio rests within a tome.
+          </p>
         {% endif %}
       {% else %}
         <!-- Empty state — no folios inscribed yet. -->
@@ -326,7 +342,7 @@
 
 <!-- =============== Codex dialog (replaces prompt/confirm) =============== -->
 <dialog id="codex-dialog" class="codex-dialog">
-  <p class="cd-eyebrow" id="cd-eyebrow">— SCRINIVM —</p>
+  <p class="cd-eyebrow" id="cd-eyebrow">— TOMVS —</p>
   <h4 class="cd-title" id="cd-title"></h4>
   <p class="cd-msg" id="cd-msg"></p>
   <input id="cd-input" class="cd-input" type="text" maxlength="120"
@@ -348,7 +364,7 @@
    */
   function codexDialog(opts) {
     return new Promise((resolve) => {
-      _cdEl('cd-eyebrow').textContent = opts.eyebrow || '— SCRINIVM —';
+      _cdEl('cd-eyebrow').textContent = opts.eyebrow || '— TOMVS —';
       _cdEl('cd-title').textContent = opts.title || '';
       _cdEl('cd-msg').textContent = opts.message || '';
       _cdEl('cd-msg').style.display = opts.message ? '' : 'none';
@@ -413,8 +429,8 @@
     try {
       if (v === '__new__') {
         const name = await codexDialog({
-          title: 'Commission a scrinium',
-          message: 'Name the chest into which this folio shall be filed.',
+          title: 'Commission a tome',
+          message: 'Name the volume into which this folio shall be bound.',
           input: true, placeholder: 'e.g. Essence of Linear Algebra',
           confirmLabel: 'inscribe',
         });
@@ -426,7 +442,7 @@
       location.reload();
     } catch (e) {
       revert();
-      await codexLament('The folio could not be re-filed: ' + e.message);
+      await codexLament('The folio could not be re-bound: ' + e.message);
     }
   }
 
@@ -448,8 +464,8 @@
 
   async function farziDeleteRepo(repoId, name) {
     const yes = await codexDialog({
-      title: 'Dissolve this scrinium?',
-      message: `"${name}" shall be dissolved. Its folios are spared and return to the loose pile.`,
+      title: 'Dissolve this tome?',
+      message: `"${name}" shall be unbound. Its folios are spared, and stand alone once more.`,
       confirmLabel: 'dissolve', danger: true,
     });
     if (!yes) return;
@@ -457,14 +473,14 @@
       await farziApi('DELETE', `/v1/repos/${repoId}`);
       location.reload();
     } catch (e) {
-      await codexLament('The scrinium could not be dissolved: ' + e.message);
+      await codexLament('The tome could not be dissolved: ' + e.message);
     }
   }
 
   async function farziNewRepo() {
     const name = await codexDialog({
-      title: 'Commission a scrinium',
-      message: 'Name the chest wherein kindred folios shall be gathered.',
+      title: 'Commission a tome',
+      message: 'Name the volume wherein kindred folios shall be gathered.',
       input: true, placeholder: 'e.g. Essence of Linear Algebra',
       confirmLabel: 'inscribe',
     });
@@ -473,11 +489,23 @@
       await farziApi('POST', '/v1/repos', { name });
       location.reload();
     } catch (e) {
-      await codexLament('The scrinium could not be commissioned: ' + e.message);
+      await codexLament('The tome could not be commissioned: ' + e.message);
     }
   }
 
-  // Remember each select's starting value so a cancelled "new scrinium…" can revert.
+  // ---------- the Compendium · Tomes · Folios view switcher ----------
+  function setView(v) {
+    document.querySelectorAll('.codex-tab').forEach(b =>
+      b.classList.toggle('active', b.dataset.view === v));
+    const show = (el, on) => { if (el) el.style.display = on ? '' : 'none'; };
+    document.querySelectorAll('.tome-shelf').forEach(el => show(el, v !== 'folios'));
+    show(document.getElementById('commission-block'), v !== 'folios');
+    show(document.getElementById('folios-section'), v !== 'tomes');
+    show(document.getElementById('tomes-empty'), v === 'tomes');
+    show(document.getElementById('folios-empty'), v === 'folios');
+  }
+
+  // Remember each select's starting value so a cancelled "new tome…" can revert.
   document.querySelectorAll('select[onchange^="farziMove"]').forEach(s => { s.dataset.prev = s.value; });
 </script>
 {% endblock %}

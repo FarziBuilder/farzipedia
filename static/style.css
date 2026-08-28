@@ -414,7 +414,7 @@ html { scroll-behavior: smooth; }
 }
 
 /* ============================================================
-   Scrinia — folio filing controls, commission button, dialog
+   Tomes — folio filing controls, commission button, dialog
    ============================================================ */
 
 .folio-controls {
@@ -468,7 +468,7 @@ html { scroll-behavior: smooth; }
   color: #faf3e0;
 }
 
-.scrinium-found-btn {
+.tome-found-btn {
   font-family: 'Cinzel', 'Trajan Pro', serif;
   font-size: 12px;
   font-weight: 600;
@@ -483,14 +483,14 @@ html { scroll-behavior: smooth; }
   cursor: pointer;
   transition: all 0.2s;
 }
-.scrinium-found-btn:hover {
+.tome-found-btn:hover {
   color: #a83c1f;
   border-color: rgba(168, 60, 31, 0.6);
   outline-color: rgba(168, 60, 31, 0.35);
   transform: translateY(-1px);
 }
 
-.scrinium-dissolve {
+.tome-dissolve {
   font: inherit;
   color: inherit;
   background: none;
@@ -501,7 +501,7 @@ html { scroll-behavior: smooth; }
   text-decoration-style: dotted;
   text-underline-offset: 3px;
 }
-.scrinium-dissolve:hover { color: #a83c1f; }
+.tome-dissolve:hover { color: #a83c1f; }
 
 /* ---------- the codex dialog ---------- */
 
@@ -600,4 +600,39 @@ html { scroll-behavior: smooth; }
 .cd-confirm.cd-danger:hover {
   background: #7d2d18;
   border-color: #7d2d18;
+}
+
+/* ---------- Compendium · Tomes · Folios view switcher ---------- */
+
+.codex-tabs {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-bottom: 44px;
+}
+.codex-tab {
+  font-family: 'Cinzel', 'Trajan Pro', serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #8b5a2b;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 6px 2px 7px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.codex-tab:hover { color: #6b4220; }
+.codex-tab.active {
+  color: #1a1108;
+  border-bottom-color: #a83c1f;
+}
+.codex-tab-sep {
+  color: #a87844;
+  font-size: 12px;
+  opacity: 0.65;
+  user-select: none;
 }
