@@ -417,55 +417,60 @@ html { scroll-behavior: smooth; }
    Tomes — folio filing controls, commission button, dialog
    ============================================================ */
 
+/* A quiet colophon line, not a form: inline italic binding selector on the
+   left, a whisper of a burn link on the right. */
 .folio-controls {
-  margin-top: 10px;
+  margin-top: 9px;
   display: flex;
-  align-items: stretch;
-  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .folio-shelf-select {
   appearance: none;
   -webkit-appearance: none;
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
   font-family: 'IM Fell English', Garamond, serif;
   font-style: italic;
   font-size: 12.5px;
-  color: #3a2a1a;
+  color: #8b5a2b;
   background:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238b5a2b' fill='none' stroke-width='1.2'/%3E%3C/svg%3E")
-    no-repeat right 9px center / 9px 6px,
-    rgba(250, 243, 224, 0.75);
-  border: 1px solid rgba(139, 90, 43, 0.35);
-  border-radius: 2px;
-  padding: 5px 24px 5px 10px;
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23a87844' fill='none' stroke-width='1.1'/%3E%3C/svg%3E")
+    no-repeat right 2px center / 8px 5px transparent;
+  border: none;
+  border-bottom: 1px dotted rgba(139, 90, 43, 0.4);
+  border-radius: 0;
+  padding: 2px 16px 2px 1px;
   cursor: pointer;
-  transition: border-color 0.15s;
+  transition: color 0.15s, border-color 0.15s;
 }
 .folio-shelf-select:hover,
 .folio-shelf-select:focus {
-  border-color: #a83c1f;
+  color: #a83c1f;
+  border-bottom-color: rgba(168, 60, 31, 0.55);
   outline: none;
 }
 
 .folio-burn {
   font-family: 'Cinzel', 'Trajan Pro', serif;
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 600;
-  letter-spacing: 0.09em;
-  color: #a83c1f;
+  letter-spacing: 0.14em;
+  color: rgba(168, 60, 31, 0.55);
   background: transparent;
-  border: 1px solid rgba(168, 60, 31, 0.4);
+  border: 1px solid transparent;
   border-radius: 2px;
-  padding: 5px 11px;
+  border-radius: 2px;
+  padding: 3px 6px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: color 0.15s, border-color 0.15s;
   white-space: nowrap;
 }
 .folio-burn:hover {
-  background: #a83c1f;
-  color: #faf3e0;
+  color: #a83c1f;
+  border-color: rgba(168, 60, 31, 0.35);
 }
 
 .tome-found-btn {

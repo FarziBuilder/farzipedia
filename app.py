@@ -45,6 +45,34 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# --- Canonical host -----------------------------------------------------------
+# When CANONICAL_HOST is set (e.g. "www.farzipedia.com"), every request that
+# arrives on a different public host (e.g. the old farzi.me) is permanently
+# redirected to the canonical one. Local dev and Render's own *.onrender.com
+# host (used by health checks) are exempt so deploys never go unhealthy.
+CANONICAL_HOST = os.environ.get("CANONICAL_HOST", "").strip().lower()
+
+
+@app.middleware("http")
+async def _canonical_host_redirect(request: Request, call_next):
+    if CANONICAL_HOST:
+        host = (request.headers.get("host") or "").split(":")[0].lower()
+        exempt = (
+            not host
+            or host == CANONICAL_HOST
+            or host.endswith(".onrender.com")
+            or host in ("localhost", "testserver")
+            or host.startswith("127.")
+            or host.startswith("192.168.")
+        )
+        if not exempt:
+            # Force https: TLS terminates at the proxy, so request.url may
+            # carry plain http even though the public site is https-only.
+            url = request.url.replace(netloc=CANONICAL_HOST, scheme="https")
+            # 308 preserves the method, so extension POSTs survive the hop.
+            return RedirectResponse(str(url), status_code=308)
+    return await call_next(request)
+
 JOBS: dict[str, dict] = {}
 JOBS_LOCK = threading.Lock()
 
