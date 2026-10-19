@@ -29,7 +29,7 @@
       </p>
       <p class="font-codex text-ink-700 text-sm mt-3">
         Effective date: <span class="font-mono not-italic">2026-05-25</span> ·
-        Last updated: <span class="font-mono not-italic">2026-10-17</span>
+        Last updated: <span class="font-mono not-italic">2026-10-19</span>
       </p>
       <div class="ornament-rule mt-5 max-w-md mx-auto"><span class="fleuron">❧</span></div>
     </div>
@@ -44,7 +44,7 @@
         <p class="font-roman italic text-sepia-500 text-xs tracking-[0.2em] uppercase mb-2">In plain English</p>
         <ul class="space-y-2 text-ink-700">
           <li>• FarziPedia turns YouTube videos into illustrated blog posts. The Chrome extension reads the video's transcript and captures frames from your active YouTube tab.</li>
-          <li>• The extension sends the transcript, the video's title and channel, and the frames straight from your browser to Anthropic's Claude API, using <strong class="text-ink-900">your own</strong> Anthropic API key. Your key is kept in your Chrome profile, and the extension sends it only to Anthropic — never to us.</li>
+          <li>• The extension sends the transcript, the video's title and channel, and the frames to Anthropic's Claude API, which writes the post. If you haven't added an API key, they pass through our server at farzipedia.com, which forwards them to Anthropic with FarziPedia's own key and keeps no copy. If you have added <strong class="text-ink-900">your own</strong> Anthropic key, they go straight from your browser to Anthropic, and your key is never sent to us.</li>
           <li>• The finished blog post and its frames are then published on farzipedia.com, in a public library anyone can browse — so only render videos you are happy to see listed publicly.</li>
           <li>• We do <strong class="text-ink-900">not</strong> collect your name, email, account info, location, or YouTube identity. We do <strong class="text-ink-900">not</strong> sell user data or share it beyond what this page describes. We do <strong class="text-ink-900">not</strong> use cookies, analytics, or trackers in the extension or on this website.</li>
           <li>• If you want a folio removed from farzipedia.com, email us — see <a href="#contact" class="text-accent-500 underline decoration-dotted">Contact</a>.</li>
@@ -83,20 +83,20 @@
         If you start a <em>playlist</em> run, the extension also downloads the public playlist page from youtube.com (without your YouTube cookies) to read the playlist's title and video list, then loads up to 50 of its videos one after another in your YouTube tab, muted, and reads each one as above.
       </p>
       <p class="mb-4">
-        The extension does <strong class="text-ink-900">not</strong> read information from any other tab, never runs without your explicit click on the toolbar icon, and does not access your YouTube account details, browsing history, bookmarks, or any other browser data. The only browser permissions it requests are <span class="font-mono text-sm">storage</span> and <span class="font-mono text-sm">unlimitedStorage</span> (to keep your key and recent posts), <span class="font-mono text-sm">activeTab</span> and <span class="font-mono text-sm">scripting</span> (to read and capture the YouTube tab you are on), and access to youtube.com and farzipedia.com (including their subdomains), api.anthropic.com, and farzipedia.onrender.com.
+        The extension does <strong class="text-ink-900">not</strong> read information from any other tab, never runs without your explicit click on the toolbar icon, and does not access your YouTube account details, browsing history, bookmarks, or any other browser data. The only browser permissions it requests are <span class="font-mono text-sm">storage</span> and <span class="font-mono text-sm">unlimitedStorage</span> (to keep your optional API key and recent posts), <span class="font-mono text-sm">activeTab</span> and <span class="font-mono text-sm">scripting</span> (to read and capture the YouTube tab you are on), and access to youtube.com and farzipedia.com (including their subdomains), api.anthropic.com, and farzipedia.onrender.com.
       </p>
 
-      <h3 class="font-roman text-xl font-semibold text-ink-900 mt-6 mb-2">2.2 Your Anthropic API key, and what goes to Anthropic</h3>
+      <h3 class="font-roman text-xl font-semibold text-ink-900 mt-6 mb-2">2.2 What goes to Anthropic, and your optional API key</h3>
       <p class="mb-3">
-        The extension has no AI key of its own. To generate posts you paste your own Anthropic API key into the extension's popup, and Anthropic bills that usage to your Anthropic account.
+        Claude, Anthropic's AI model, writes each post. For each video the extension sends Anthropic the timestamped transcript, the video's title and channel name, and the screenshots described in §2.1, for the <span class="font-mono text-sm">claude-opus-4-8</span> model. How the request gets there depends on whether you have added your own Anthropic API key in the popup:
       </p>
       <ul class="list-disc pl-6 mb-4 space-y-1">
-        <li><strong>Where the key is kept.</strong> In Chrome's <span class="font-mono text-sm">chrome.storage.sync</span> area, which belongs to your Chrome profile. If Chrome Sync is turned on, Chrome also copies it to your other signed-in Chrome browsers through your Google Account. The <em>Clear</em> button in the popup deletes it.</li>
-        <li><strong>Where the key goes.</strong> Only to Anthropic (<span class="font-mono text-sm">api.anthropic.com</span>), with each request the extension makes there. It is never sent to farzipedia.com or anywhere else, and we never see it.</li>
-        <li><strong>What is sent to Anthropic.</strong> For each video: the timestamped transcript, the video's title and channel name, and the screenshots described in §2.1. The extension sends these directly from your browser to Anthropic's Claude API (currently the <span class="font-mono text-sm">claude-opus-4-8</span> model), which writes the post. They do not pass through our server.</li>
+        <li><strong>Without your own key (the default).</strong> The extension sends the request to our server (<span class="font-mono text-sm">farzipedia.com/v1/proxy/messages</span>), which adds FarziPedia's own Anthropic API key, forwards the request to Anthropic, and returns Anthropic's answer. Our server handles the request in memory only: it does not store or log the transcript, the screenshots, or the generated text. Anthropic handles the data as part of FarziPedia's Anthropic account.</li>
+        <li><strong>With your own key.</strong> The extension sends the request directly from your browser to Anthropic (<span class="font-mono text-sm">api.anthropic.com</span>) with your key. It does not pass through our server, the key is never sent to farzipedia.com, and Anthropic bills the usage to your account and handles the data as part of it.</li>
+        <li><strong>Where your key is kept, if you add one.</strong> In Chrome's <span class="font-mono text-sm">chrome.storage.sync</span> area, which belongs to your Chrome profile. If Chrome Sync is turned on, Chrome also copies it to your other signed-in Chrome browsers through your Google Account. The <em>Clear</em> button in the popup deletes it.</li>
       </ul>
       <p class="mb-4">
-        Because these requests are made with your key, Anthropic receives and handles that data as part of your own Anthropic account, under Anthropic's terms and privacy policy — see <a href="https://www.anthropic.com/legal/privacy" class="text-accent-500 underline decoration-dotted" target="_blank" rel="noopener">anthropic.com/legal/privacy</a>. You can revoke the key at any time in your <a href="https://console.anthropic.com/settings/keys" class="text-accent-500 underline decoration-dotted" target="_blank" rel="noopener">Anthropic account's API key settings</a>.
+        Either way, Anthropic receives and handles that data under its own terms and privacy policy — see <a href="https://www.anthropic.com/legal/privacy" class="text-accent-500 underline decoration-dotted" target="_blank" rel="noopener">anthropic.com/legal/privacy</a>. If you use your own key, you can revoke it at any time in your <a href="https://console.anthropic.com/settings/keys" class="text-accent-500 underline decoration-dotted" target="_blank" rel="noopener">Anthropic account's API key settings</a>.
       </p>
 
       <h3 class="font-roman text-xl font-semibold text-ink-900 mt-6 mb-2">2.3 Information farzipedia.com receives</h3>
@@ -118,20 +118,20 @@
         The extension keeps the following in its own storage inside your browser:
       </p>
       <ul class="list-disc pl-6 mb-4 space-y-1">
-        <li>Your Anthropic API key, in <span class="font-mono text-sm">chrome.storage.sync</span> (see §2.2).</li>
+        <li>Your Anthropic API key, if you add one, in <span class="font-mono text-sm">chrome.storage.sync</span> (see §2.2).</li>
         <li>Your most recent generated posts (blog content + captured frames), in <span class="font-mono text-sm">chrome.storage.local</span>: the last five, or every post from your latest playlist run plus up to five earlier ones. They are listed on the extension's local library page (<span class="font-mono text-sm">result/result.html</span>), so you can reopen them, including any that could not be published. Older posts are deleted automatically.</li>
         <li>A short record of the most recent run (whether it succeeded, when it finished, how many posts were published, any error, and up to 30 warning messages), which the popup shows after a failed run.</li>
         <li>While a run is in progress, its status (current step, warnings, and the video's ID, title, channel, description, and duration), so the popup can re-attach if you close and reopen it. This is deleted when the run ends.</li>
       </ul>
       <p class="mb-4">
-        Apart from the upload described in §2.3 and Chrome's own syncing of your key (§2.2), none of this leaves your browser. Removing the extension deletes all of it.
+        Apart from the generation request (§2.2), the upload (§2.3), and Chrome's own syncing of your key, none of this leaves your browser. Removing the extension deletes all of it.
       </p>
 
       <h3 class="font-roman text-xl font-semibold text-ink-900 mt-6 mb-2">2.5 What we do NOT collect</h3>
       <ul class="list-disc pl-6 mb-4 space-y-1">
         <li>Your name, email, age, gender, address, phone number, or other personally identifying information.</li>
         <li>Your YouTube account identity, login state, watch history, or subscriptions. A playlist is read only when you paste its link to start a playlist run.</li>
-        <li>Your Anthropic API key — the extension keeps it in your Chrome profile and sends it only to Anthropic.</li>
+        <li>Your Anthropic API key, if you add one — the extension keeps it in your Chrome profile and sends it only to Anthropic.</li>
         <li>Any payment, financial, or health information.</li>
         <li>Your browsing history, the contents of other tabs, or any data from non-YouTube websites.</li>
         <li>Geolocation data.</li>
@@ -142,9 +142,9 @@
       <h2 class="font-roman text-2xl md:text-3xl font-semibold text-ink-900 mt-10 mb-4">3. How we use the information</h2>
       <p class="mb-3">We use the data described in §2 solely for the following purposes:</p>
       <ul class="list-disc pl-6 mb-4 space-y-1">
-        <li><strong>Generating your blog post.</strong> The transcript, the video's title and channel, and the frames are sent from your browser directly to Anthropic's Claude API, with your own API key, so Claude can write the post about the video.</li>
+        <li><strong>Generating your blog post.</strong> The transcript, the video's title and channel, and the frames are sent to Anthropic's Claude API so Claude can write the post about the video: through our server with FarziPedia's key, or directly from your browser with your own key (§2.2).</li>
         <li><strong>Displaying your folio publicly.</strong> The resulting blog post and its frames are saved to farzipedia.com and shown in the public library, which any visitor may browse; posts from a playlist run are grouped into a tome named after the playlist. This happens for every post you generate, including posts about unlisted videos.</li>
-        <li><strong>Rate-limiting abuse.</strong> Our server keeps the IP address of each upload in memory (never on disk) to cap how many uploads one address can make per minute.</li>
+        <li><strong>Rate-limiting abuse.</strong> Our server keeps the IP address of each upload, and of each request it forwards to Anthropic, in memory (never on disk) to cap how many requests one address can make per minute.</li>
         <li><strong>Operating the service.</strong> Standard request logs (HTTP status, request path, response time, and possibly your IP address) are produced by our hosting provider (Render) and its network (Cloudflare) for diagnosing outages.</li>
       </ul>
       <p class="mb-4">
@@ -159,7 +159,7 @@
         FarziPedia relies on the following providers. We do not send them personal information, but some of them see your requests directly, so you should be aware of their independent privacy practices:
       </p>
       <ul class="list-disc pl-6 mb-4 space-y-2">
-        <li><strong>Anthropic, PBC</strong> — receives the transcript, the video's title and channel, and the frames directly from your browser, sent with your own API key, and returns a generated blog post. Anthropic handles that data under its own terms and privacy policy, as part of your Anthropic account (see §2.2). See <a href="https://www.anthropic.com/legal/privacy" class="text-accent-500 underline decoration-dotted" target="_blank" rel="noopener">anthropic.com/legal/privacy</a>.</li>
+        <li><strong>Anthropic, PBC</strong> — receives the transcript, the video's title and channel, and the frames, either forwarded by our server with FarziPedia's key or sent directly from your browser with your own key, and returns a generated blog post. Anthropic handles that data under its own terms and privacy policy (see §2.2). See <a href="https://www.anthropic.com/legal/privacy" class="text-accent-500 underline decoration-dotted" target="_blank" rel="noopener">anthropic.com/legal/privacy</a>.</li>
         <li><strong>Render, Inc.</strong> — hosts the farzipedia.com FastAPI service and the persistent disk on which published folios are stored. See <a href="https://render.com/privacy" class="text-accent-500 underline decoration-dotted" target="_blank" rel="noopener">render.com/privacy</a>.</li>
         <li><strong>Cloudflare, Inc.</strong> — Render serves farzipedia.com through Cloudflare's network, so Cloudflare may observe request metadata (IP, User-Agent, requested URL). See <a href="https://www.cloudflare.com/privacypolicy/" class="text-accent-500 underline decoration-dotted" target="_blank" rel="noopener">cloudflare.com/privacypolicy</a>.</li>
         <li><strong>Google LLC (Fonts)</strong> — the extension's popup and result pages, and this website, link to Google Fonts stylesheets (Cinzel, Cormorant Garamond, IM Fell English, Italianno, and on this website a few more) for typography. When those pages render, your browser requests the font CSS and font files from Google's CDN, which may observe request metadata. See <a href="https://policies.google.com/privacy" class="text-accent-500 underline decoration-dotted" target="_blank" rel="noopener">policies.google.com/privacy</a>.</li>
@@ -184,12 +184,12 @@
 
       <h3 class="font-roman text-xl font-semibold text-ink-900 mt-6 mb-2">5.2 On your device (extension)</h3>
       <p class="mb-4">
-        The extension's local storage holds at most your last five posts, or after a playlist run, that run's posts plus up to five earlier ones. Older entries are deleted automatically. Your API key stays until you click <em>Clear</em> in the popup. Removing the extension deletes everything it stored on your device.
+        The extension's local storage holds at most your last five posts, or after a playlist run, that run's posts plus up to five earlier ones. Older entries are deleted automatically. Your API key, if you added one, stays until you click <em>Clear</em> in the popup. Removing the extension deletes everything it stored on your device.
       </p>
 
       <h3 class="font-roman text-xl font-semibold text-ink-900 mt-6 mb-2">5.3 Security</h3>
       <p class="mb-4">
-        The extension connects to Anthropic and farzipedia.com only over HTTPS. Your Anthropic API key is kept in Chrome's extension storage and sent only to Anthropic; it never reaches our server. Anyone with access to your Chrome profile could read it, so we recommend setting a monthly spend limit on the key in your Anthropic account. Source code is open for inspection at the GitHub links above.
+        The extension connects to Anthropic and farzipedia.com only over HTTPS, and our server forwards requests to Anthropic over HTTPS. If you add your own Anthropic API key, it is kept in Chrome's extension storage and sent only to Anthropic; it never reaches our server. Anyone with access to your Chrome profile could read it, so we recommend setting a monthly spend limit on the key in your Anthropic account. Source code is open for inspection at the GitHub links above.
       </p>
 
       <!-- ==================== Your rights ==================== -->
@@ -214,7 +214,7 @@
       <!-- ==================== International ==================== -->
       <h2 class="font-roman text-2xl md:text-3xl font-semibold text-ink-900 mt-10 mb-4">8. International users</h2>
       <p class="mb-4">
-        The farzipedia.com backend is hosted in the United States (Render's Oregon region). If you use the service from outside the United States, your published folios and the request data our server receives will be transmitted to and stored in the United States. Anthropic is a US company and handles the data the extension sends it under its own privacy policy, which describes where that data is processed. We rely on standard HTTPS transport for all such transfers.
+        The farzipedia.com backend is hosted in the United States (Render's Oregon region). If you use the service from outside the United States, your published folios and the request data our server receives will be transmitted to the United States, and folios are stored there. Anthropic is a US company and handles the data the extension sends it under its own privacy policy, which describes where that data is processed. We rely on standard HTTPS transport for all such transfers.
       </p>
 
       <!-- ==================== Changes ==================== -->
@@ -223,7 +223,7 @@
         If we materially change how we collect, use, or share information we will update this page and, where reasonable, bump the extension's version number with a note in the release. The "Last updated" date at the top of this page always reflects the current revision. Material changes will be noted in the GitHub commit history of <a href="https://github.com/FarziBuilder/farzipedia" class="text-accent-500 underline decoration-dotted" target="_blank" rel="noopener">FarziBuilder/farzipedia</a> for transparency.
       </p>
       <p class="mb-4">
-        The 2026-10-17 revision describes extension version 0.5.4, which calls Anthropic directly with your own API key and publishes to farzipedia.com. Earlier versions sent the transcript and frames through a proxy on our server at farzi.me, a domain we no longer use.
+        The 2026-10-19 revision describes extension version 0.5.5, which no longer needs your own API key: without one, it sends generation requests through our server, which forwards them to Anthropic with FarziPedia's key. The 2026-10-17 revision described version 0.5.4, which required your own key and called Anthropic directly. Earlier versions sent the transcript and frames through a proxy on our server at farzi.me, a domain we no longer use.
       </p>
 
       <!-- ==================== Contact ==================== -->

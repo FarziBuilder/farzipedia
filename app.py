@@ -82,6 +82,11 @@ JOBS_LOCK = threading.Lock()
 # instance behind a CDN. If we ever scale out, swap to Redis.
 PROXY_RATE_LIMIT = int(os.environ.get("PROXY_RATE_LIMIT", "20"))   # requests
 PROXY_RATE_WINDOW = int(os.environ.get("PROXY_RATE_WINDOW", "60"))  # seconds
+# Only FarziPedia's own request shape gets the server's key: its model, a
+# capped max_tokens, no streaming. Without these checks the proxy is an open,
+# free Claude API billed to us.
+PROXY_MODELS = {m.strip() for m in os.environ.get("PROXY_MODELS", "claude-opus-4-8").split(",") if m.strip()}
+PROXY_MAX_TOKENS = int(os.environ.get("PROXY_MAX_TOKENS", "32000"))
 _proxy_buckets: dict[str, deque] = defaultdict(deque)
 _proxy_lock = threading.Lock()
 
@@ -344,7 +349,7 @@ def privacy(request: Request):
 # ============================================================================
 #  Anthropic proxy — extension calls this so users don't need their own key.
 #  Body is forwarded verbatim to api.anthropic.com/v1/messages with the
-#  server's ANTHROPIC_API_KEY attached.
+#  server's ANTHROPIC_API_KEY attached, once it passes the PROXY_* checks.
 # ============================================================================
 
 @app.post("/v1/proxy/messages")
@@ -358,7 +363,7 @@ async def proxy_messages(request: Request):
     if not allowed:
         return JSONResponse(
             {"error": {"type": "rate_limit_error",
-                       "message": f"farzi.me proxy: too many requests, retry in {retry_after}s"}},
+                       "message": f"FarziPedia proxy: too many requests, retry in {retry_after}s"}},
             status_code=429,
             headers={"retry-after": str(retry_after)},
         )
@@ -367,6 +372,26 @@ async def proxy_messages(request: Request):
         body = await request.body()
     except Exception as e:
         raise HTTPException(400, f"Could not read request body: {e}")
+
+    try:
+        payload = json.loads(body)
+    except ValueError:
+        payload = None
+    problem = None
+    if not isinstance(payload, dict):
+        problem = "Request body must be a JSON object."
+    elif payload.get("model") not in PROXY_MODELS:
+        problem = f"This proxy only serves FarziPedia's model ({', '.join(sorted(PROXY_MODELS))})."
+    elif (not isinstance(payload.get("max_tokens"), int) or isinstance(payload.get("max_tokens"), bool)
+          or not 0 < payload["max_tokens"] <= PROXY_MAX_TOKENS):
+        problem = f"max_tokens must be between 1 and {PROXY_MAX_TOKENS}."
+    elif payload.get("stream"):
+        problem = "This proxy doesn't support streaming."
+    if problem:
+        return JSONResponse(
+            {"error": {"type": "invalid_request_error", "message": problem}},
+            status_code=400,
+        )
 
     upstream_headers = {
         "x-api-key": server_key,
@@ -391,7 +416,7 @@ async def proxy_messages(request: Request):
     except httpx.TimeoutException:
         return JSONResponse(
             {"error": {"type": "timeout_error",
-                       "message": "Upstream Anthropic API timed out via farzi.me proxy."}},
+                       "message": "Upstream Anthropic API timed out via the FarziPedia proxy."}},
             status_code=504,
         )
     except httpx.HTTPError as e:
