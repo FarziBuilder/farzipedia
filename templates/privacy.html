@@ -29,7 +29,7 @@
       </p>
       <p class="font-codex text-ink-700 text-sm mt-3">
         Effective date: <span class="font-mono not-italic">2026-05-25</span> ·
-        Last updated: <span class="font-mono not-italic">2026-10-19</span>
+        Last updated: <span class="font-mono not-italic">2026-11-13</span>
       </p>
       <div class="ornament-rule mt-5 max-w-md mx-auto"><span class="fleuron">❧</span></div>
     </div>
@@ -43,10 +43,10 @@
       <section class="mb-10 p-5 rounded-sm border border-sepia-500/30 bg-paper-0/70">
         <p class="font-roman italic text-sepia-500 text-xs tracking-[0.2em] uppercase mb-2">In plain English</p>
         <ul class="space-y-2 text-ink-700">
-          <li>• FarziPedia turns YouTube videos into illustrated blog posts. The Chrome extension reads the video's transcript and captures frames from your active YouTube tab.</li>
+          <li>• FarziPedia turns YouTube videos into illustrated blog posts. The Chrome extension reads the video's transcript and captures frames from your active YouTube tab. The iPhone app does the same with the video page it opens inside the app (see <a href="#iphone" class="text-accent-500 underline decoration-dotted">§2.6</a>).</li>
           <li>• The extension sends the transcript, the video's title and channel, and the frames to Anthropic's Claude API, which writes the post. If you haven't added an API key, they pass through our server at farzipedia.com, which forwards them to Anthropic with FarziPedia's own key and keeps no copy. If you have added <strong class="text-ink-900">your own</strong> Anthropic key, they go straight from your browser to Anthropic, and your key is never sent to us.</li>
           <li>• The finished blog post and its frames are then published on farzipedia.com, in a public library anyone can browse — so only render videos you are happy to see listed publicly.</li>
-          <li>• We do <strong class="text-ink-900">not</strong> collect your name, email, account info, location, or YouTube identity. We do <strong class="text-ink-900">not</strong> sell user data or share it beyond what this page describes. We do <strong class="text-ink-900">not</strong> use cookies, analytics, or trackers in the extension or on this website.</li>
+          <li>• We do <strong class="text-ink-900">not</strong> collect your name, email, account info, location, or YouTube identity. We do <strong class="text-ink-900">not</strong> sell user data or share it beyond what this page describes. We do <strong class="text-ink-900">not</strong> use cookies, analytics, or trackers in the extension, the iPhone app, or on this website.</li>
           <li>• If you want a folio removed from farzipedia.com, email us — see <a href="#contact" class="text-accent-500 underline decoration-dotted">Contact</a>.</li>
         </ul>
       </section>
@@ -58,10 +58,11 @@
       </p>
       <ul class="list-disc pl-6 mb-4 space-y-1">
         <li>A Chrome browser extension distributed via the Chrome Web Store and at <a href="https://github.com/FarziBuilder/farzipedia-extension" class="text-accent-500 underline decoration-dotted" target="_blank" rel="noopener">github.com/FarziBuilder/farzipedia-extension</a>.</li>
+        <li>An iPhone app, also called FarziPedia, distributed through Apple's App Store.</li>
         <li>A website and backend service (FastAPI) at <a href="https://farzipedia.com" class="text-accent-500 underline decoration-dotted">farzipedia.com</a> that hosts the public folio library. The same service also answers at <span class="font-mono text-sm">farzipedia.onrender.com</span>, its address at our hosting provider.</li>
       </ul>
       <p class="mb-4">
-        Source code for both is public at <a href="https://github.com/FarziBuilder" class="text-accent-500 underline decoration-dotted" target="_blank" rel="noopener">github.com/FarziBuilder</a>. This policy applies to both the extension and the website.
+        Source code for all three is public at <a href="https://github.com/FarziBuilder" class="text-accent-500 underline decoration-dotted" target="_blank" rel="noopener">github.com/FarziBuilder</a>. This policy applies to the extension, the iPhone app, and the website.
       </p>
 
       <!-- ==================== What we collect ==================== -->
@@ -138,6 +139,19 @@
         <li>Keystrokes, mouse movements, or any form of analytics on user behaviour.</li>
       </ul>
 
+      <h3 id="iphone" class="font-roman text-xl font-semibold text-ink-900 mt-6 mb-2">2.6 The iPhone app</h3>
+      <p class="mb-3">
+        The iPhone app works like the extension, with these differences:
+      </p>
+      <ul class="list-disc pl-6 mb-4 space-y-1">
+        <li><strong>What it reads.</strong> When you paste a video link and tap <em>Render the Codex</em>, the app opens that video's watch page from YouTube in a browser view inside the app. From that page it reads the same public metadata and caption track as the extension (§2.1), and captures frames from the video shown on screen (at most 25 per video). It does not read anything else on your phone, and it has no playlist mode.</li>
+        <li><strong>Generation always goes through our server.</strong> The app has no API key setting. It sends the transcript, the video's title and channel, and the frames to <span class="font-mono text-sm">farzipedia.com/v1/proxy/messages</span>, which forwards them to Anthropic with FarziPedia's key, exactly as described in §2.2. Our server does not store or log them.</li>
+        <li><strong>Publishing.</strong> The finished post and its frames are uploaded to farzipedia.com and appear in the public library, as in §2.3. If the upload fails, the post stays on your phone. The app also sends a small request to <span class="font-mono text-sm">farzipedia.com/v1/repos</span> to check which of our addresses is answering.</li>
+        <li><strong>On your phone.</strong> Each post you render (its text, frames, and the source video's details) is saved in the app's own storage and listed in your library until you delete it: swipe left on it in the library, or delete the app to remove them all. Sharing a post as a PDF or Markdown file happens only when you choose it, through iOS's share sheet.</li>
+        <li><strong>YouTube inside the app.</strong> Because the app loads the video's page from YouTube, YouTube receives the same request data and may set the same cookies in the app's browser view as it would in a browser. These stay inside the app; we cannot read them.</li>
+        <li><strong>No accounts, ads, analytics, or tracking.</strong> The app has no sign-in, contains no advertising or analytics code, and does not track you across other apps or websites.</li>
+      </ul>
+
       <!-- ==================== How we use it ==================== -->
       <h2 class="font-roman text-2xl md:text-3xl font-semibold text-ink-900 mt-10 mb-4">3. How we use the information</h2>
       <p class="mb-3">We use the data described in §2 solely for the following purposes:</p>
@@ -164,7 +178,8 @@
         <li><strong>Cloudflare, Inc.</strong> — Render serves farzipedia.com through Cloudflare's network, so Cloudflare may observe request metadata (IP, User-Agent, requested URL). See <a href="https://www.cloudflare.com/privacypolicy/" class="text-accent-500 underline decoration-dotted" target="_blank" rel="noopener">cloudflare.com/privacypolicy</a>.</li>
         <li><strong>Google LLC (Fonts)</strong> — the extension's popup and result pages, and this website, link to Google Fonts stylesheets (Cinzel, Cormorant Garamond, IM Fell English, Italianno, and on this website a few more) for typography. When those pages render, your browser requests the font CSS and font files from Google's CDN, which may observe request metadata. See <a href="https://policies.google.com/privacy" class="text-accent-500 underline decoration-dotted" target="_blank" rel="noopener">policies.google.com/privacy</a>.</li>
         <li><strong>Tailwind CSS CDN</strong> — this website (not the extension) loads its styling script from <span class="font-mono text-sm">cdn.tailwindcss.com</span>, which may observe request metadata.</li>
-        <li><strong>YouTube / Google LLC</strong> — the extension reads transcript and frame data from YouTube pages you have opened in your own browser session; transcript requests are made from inside that tab, as YouTube's own player makes them. For a playlist run, the extension also downloads the public playlist page and loads each video in your tab. This website shows video thumbnails served by YouTube (<span class="font-mono text-sm">img.youtube.com</span>).</li>
+        <li><strong>YouTube / Google LLC</strong> — the extension reads transcript and frame data from YouTube pages you have opened in your own browser session; transcript requests are made from inside that tab, as YouTube's own player makes them. For a playlist run, the extension also downloads the public playlist page and loads each video in your tab. The iPhone app loads the video's watch page from YouTube inside the app (§2.6). This website shows video thumbnails served by YouTube (<span class="font-mono text-sm">img.youtube.com</span>).</li>
+        <li><strong>Apple Inc.</strong> — distributes the iPhone app through the App Store. If you have turned on <em>Share With App Developers</em> in your iPhone's settings, Apple may share crash reports and app usage statistics with us; we use them only to fix problems. See <a href="https://www.apple.com/legal/privacy/" class="text-accent-500 underline decoration-dotted" target="_blank" rel="noopener">apple.com/legal/privacy</a>.</li>
       </ul>
 
       <h3 class="font-roman text-xl font-semibold text-ink-900 mt-6 mb-2">4.2 We do not sell user data</h3>
@@ -182,9 +197,12 @@
         <li><strong>Request logs</strong> produced by Render and Cloudflare are retained per their default retention policies.</li>
       </ul>
 
-      <h3 class="font-roman text-xl font-semibold text-ink-900 mt-6 mb-2">5.2 On your device (extension)</h3>
+      <h3 class="font-roman text-xl font-semibold text-ink-900 mt-6 mb-2">5.2 On your device</h3>
       <p class="mb-4">
         The extension's local storage holds at most your last five posts, or after a playlist run, that run's posts plus up to five earlier ones. Older entries are deleted automatically. Your API key, if you added one, stays until you click <em>Clear</em> in the popup. Removing the extension deletes everything it stored on your device.
+      </p>
+      <p class="mb-4">
+        The iPhone app keeps every post you render until you delete it from the library or delete the app (§2.6).
       </p>
 
       <h3 class="font-roman text-xl font-semibold text-ink-900 mt-6 mb-2">5.3 Security</h3>
@@ -200,8 +218,9 @@
       <ul class="list-disc pl-6 mb-4 space-y-1">
         <li><strong>Remove a folio from the public library.</strong> Email <a href="mailto:faraaz@elixarsystems.com" class="text-accent-500 underline decoration-dotted">faraaz@elixarsystems.com</a> with the folio's URL (the <span class="font-mono text-sm">/blog/&lt;id&gt;</span> link). We will delete it within seven (7) days.</li>
         <li><strong>Delete what the extension stores on your device.</strong> Click <em>Clear</em> in the popup's API key section to delete your key, or remove the extension (<span class="font-mono text-sm">chrome://extensions/</span> → FarziPedia → <em>Remove</em>) to delete your key and all locally stored posts.</li>
+        <li><strong>Delete what the iPhone app stores on your phone.</strong> Swipe left on a post in the app's library to delete it, or delete the app to remove all of them.</li>
         <li><strong>Revoke your API key.</strong> Disable or delete it at any time in your Anthropic account; the extension can then no longer use it.</li>
-        <li><strong>Stop using the service.</strong> Uninstalling the extension stops all data collection by FarziPedia immediately. No FarziPedia account or subscription exists to cancel.</li>
+        <li><strong>Stop using the service.</strong> Uninstalling the extension or deleting the iPhone app stops all data collection by FarziPedia immediately. No FarziPedia account or subscription exists to cancel.</li>
         <li><strong>Request information.</strong> If you live in a jurisdiction with data-subject access rights (GDPR, CCPA, etc.), contact <a href="mailto:faraaz@elixarsystems.com" class="text-accent-500 underline decoration-dotted">faraaz@elixarsystems.com</a>. Because we hold no identifiers, our response is usually limited to confirming which folios match a description you provide.</li>
       </ul>
 
@@ -223,7 +242,7 @@
         If we materially change how we collect, use, or share information we will update this page and, where reasonable, bump the extension's version number with a note in the release. The "Last updated" date at the top of this page always reflects the current revision. Material changes will be noted in the GitHub commit history of <a href="https://github.com/FarziBuilder/farzipedia" class="text-accent-500 underline decoration-dotted" target="_blank" rel="noopener">FarziBuilder/farzipedia</a> for transparency.
       </p>
       <p class="mb-4">
-        The 2026-10-19 revision describes extension version 0.5.5, which no longer needs your own API key: without one, it sends generation requests through our server, which forwards them to Anthropic with FarziPedia's key. The 2026-10-17 revision described version 0.5.4, which required your own key and called Anthropic directly. Earlier versions sent the transcript and frames through a proxy on our server at farzi.me, a domain we no longer use.
+        The 2026-11-13 revision adds the iPhone app (§2.6). The 2026-10-19 revision describes extension version 0.5.5, which no longer needs your own API key: without one, it sends generation requests through our server, which forwards them to Anthropic with FarziPedia's key. The 2026-10-17 revision described version 0.5.4, which required your own key and called Anthropic directly. Earlier versions sent the transcript and frames through a proxy on our server at farzi.me, a domain we no longer use.
       </p>
 
       <!-- ==================== Contact ==================== -->
